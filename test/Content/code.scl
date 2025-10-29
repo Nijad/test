@@ -1,0 +1,12 @@
+﻿program Test {
+    int x = 10;
+    double y = 3.14;
+    
+    int main() {
+        if (x > 5) {
+            return x + 1;
+        } else {
+            return 0;
+        }
+    }
+}
