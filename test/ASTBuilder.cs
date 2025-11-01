@@ -13,16 +13,16 @@ namespace test
 
         public override ASTNode VisitProgram(SimpleParser.ProgramContext context)
         {
-            var node = new ProgramNode
+            ProgramNode node = new ProgramNode
             {
                 Line = context.Start.Line,
                 Column = context.Start.Column,
                 Name = context.IDENTIFIER().GetText()
             };
 
-            foreach (var member in context.member())
+            foreach (SimpleParser.MemberContext? member in context.member())
             {
-                var memberNode = Visit(member);
+                ASTNode memberNode = Visit(member);
                 if (memberNode != null)
                     node.Members.Add(memberNode);
             }
@@ -32,7 +32,7 @@ namespace test
 
         public override ASTNode VisitFunction(SimpleParser.FunctionContext context)
         {
-            var node = new FunctionNode
+            FunctionNode node = new FunctionNode
             {
                 Line = context.Start.Line,
                 Column = context.Start.Column,
@@ -42,9 +42,9 @@ namespace test
 
             if (context.arguments() != null)
             {
-                foreach (var arg in context.arguments().argument())
+                foreach (SimpleParser.ArgumentContext? arg in context.arguments().argument())
                 {
-                    var paramNode = new ParameterNode
+                    ParameterNode paramNode = new ParameterNode
                     {
                         Line = arg.Start.Line,
                         Column = arg.Start.Column,
@@ -55,9 +55,9 @@ namespace test
                 }
             }
 
-            foreach (var stmt in context.statement())
+            foreach (SimpleParser.StatementContext? stmt in context.statement())
             {
-                var stmtNode = Visit(stmt) as StatementNode;
+                StatementNode? stmtNode = Visit(stmt) as StatementNode;
                 if (stmtNode != null)
                     node.Body.Add(stmtNode);
             }

@@ -8,13 +8,13 @@ namespace test
         public override void SyntaxError(IRecognizer recognizer, IToken offendingSymbol,
             int line, int charPositionInLine, string msg, RecognitionException e)
         {
-            string errorMessage = $"خطأ نحوي في السطر {line}, العمود {charPositionInLine}: {msg}";
+            string errorMessage = $"Syntax Error at line {line}, column {charPositionInLine}: {msg}";
             Errors.Add(errorMessage);
         }
 
         public void AddSemanticError(int line, int column, string message)
         {
-            string errorMessage = $"خطأ دلالي في السطر {line}, العمود {column}: {message}";
+            string errorMessage = $"Semantic Error at line {line}, column {column}: {message}";
             Errors.Add(errorMessage);
         }
 

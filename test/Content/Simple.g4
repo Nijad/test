@@ -5,7 +5,7 @@ WS: [ \t\r\n]+ -> skip;
 TAB: '\t' -> skip;
 ENTER: '\r'? '\n' -> skip;
 
-COMMENT: '(*' .*? '*)' -> skip;
+COMMENT: '{*' .*? '*}' -> skip;
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
 
 // Keywords
