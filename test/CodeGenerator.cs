@@ -12,7 +12,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
     public CodeGenerator(SymbolTable symbolTable)
     {
         this.symbolTable = symbolTable;
-        this.visitedNodes = new HashSet<Antlr4.Runtime.ParserRuleContext>();
+        visitedNodes = new HashSet<Antlr4.Runtime.ParserRuleContext>();
     }
 
     public string Generate(SimpleParser.ProgramContext tree)
@@ -36,12 +36,11 @@ public class CodeGenerator : SimpleBaseVisitor<string>
     // استخدام SafeVisit لمنع التكرار
     private string SafeVisit(Antlr4.Runtime.ParserRuleContext context)
     {
-        if (context == null) return "";
+        if (context == null)
+            return "";
 
         if (visitedNodes.Contains(context))
-        {
             return ""; // تجنب الزيارة المتكررة
-        }
 
         visitedNodes.Add(context);
         try
@@ -60,13 +59,9 @@ public class CodeGenerator : SimpleBaseVisitor<string>
 
         code.AppendLine(".data");
         // توليد بيانات المتغيرات العالمية
-        foreach (var member in context.member())
-        {
+        foreach (SimpleParser.MemberContext? member in context.member())
             if (member.global() != null)
-            {
                 SafeVisit(member.global());
-            }
-        }
 
         code.AppendLine();
         code.AppendLine(".code");
@@ -74,12 +69,8 @@ public class CodeGenerator : SimpleBaseVisitor<string>
 
         // توليد دوال البرنامج
         foreach (var member in context.member())
-        {
             if (member.function() != null)
-            {
                 SafeVisit(member.function());
-            }
-        }
 
         code.AppendLine("invoke ExitProcess, 0");
         code.AppendLine("end start");
@@ -97,20 +88,14 @@ public class CodeGenerator : SimpleBaseVisitor<string>
 
         // توليد كود الباراميترات والمتغيرات المحلية
         if (context.arguments() != null)
-        {
             SafeVisit(context.arguments());
-        }
 
         // توليد كود الجمل - استخدم SafeVisit بدلاً من Visit
-        foreach (var stmt in context.statement())
-        {
+        foreach (SimpleParser.StatementContext? stmt in context.statement())
             SafeVisit(stmt);
-        }
 
         if (returnType == "void")
-        {
             code.AppendLine("ret");
-        }
 
         code.AppendLine($"{functionName} ENDP");
         return "";
@@ -119,37 +104,25 @@ public class CodeGenerator : SimpleBaseVisitor<string>
     // التصحيح الحاسم: تجاوز VisitStatement بشكل صحيح
     public override string VisitStatement(SimpleParser.StatementContext context)
     {
-        if (context == null) return "";
+        if (context == null) 
+            return "";
 
         // تحقق من نوع الجملة وعالجها بشكل مناسب
         if (context.IF() != null)
-        {
             return GenerateIfStatement(context);
-        }
         else if (context.WHILE() != null)
-        {
             return GenerateWhileStatement(context);
-        }
         else if (context.FOR() != null)
-        {
             return GenerateForStatement(context);
-        }
         else if (context.RETURN() != null)
-        {
             return GenerateReturnStatement(context);
-        }
         else if (context.expression() != null && context.expression().Length > 0)
-        {
-            // توليد كود للتعبير فقط
             return GenerateExpressionStatement(context);
-        }
         else if (context.LBRACE() != null)
         {
             // كتلة من الجمل - استخدم SafeVisit للجمل الداخلية
-            foreach (var stmt in context.statement())
-            {
+            foreach (SimpleParser.StatementContext? stmt in context.statement())
                 SafeVisit(stmt);
-            }
             return "";
         }
         else if (context.type() != null && context.variables() != null)
@@ -169,7 +142,6 @@ public class CodeGenerator : SimpleBaseVisitor<string>
         string endLabel = $"L_end_{labelCounter}";
         labelCounter++;
 
-        // توليد كود الشرط - استخدم SafeVisit بدلاً من Visit
         if (context.expression().Length > 0)
         {
             SafeVisit(context.expression(0));
@@ -179,17 +151,13 @@ public class CodeGenerator : SimpleBaseVisitor<string>
 
         // كود if
         if (context.statement().Length > 0)
-        {
             SafeVisit(context.statement(0));
-        }
         code.AppendLine($"jmp {endLabel}");
 
         // كود else
         code.AppendLine($"{elseLabel}:");
         if (context.ELSE() != null && context.statement().Length > 1)
-        {
             SafeVisit(context.statement(1));
-        }
 
         code.AppendLine($"{endLabel}:");
         return "";
@@ -213,9 +181,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
 
         // كود جسم while
         if (context.statement().Length > 0)
-        {
             SafeVisit(context.statement(0));
-        }
         code.AppendLine($"jmp {startLabel}");
 
         code.AppendLine($"{endLabel}:");
@@ -230,9 +196,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
 
         // التهيئة
         if (context.type() != null && context.variables() != null)
-        {
             SafeVisit(context.variables());
-        }
 
         code.AppendLine($"{startLabel}:");
 
@@ -246,15 +210,11 @@ public class CodeGenerator : SimpleBaseVisitor<string>
 
         // جسم for
         if (context.statement().Length > 0)
-        {
             SafeVisit(context.statement(0));
-        }
 
         // التحديث
         if (context.expression().Length > 1)
-        {
             SafeVisit(context.expression(1));
-        }
 
         code.AppendLine($"jmp {startLabel}");
         code.AppendLine($"{endLabel}:");
@@ -264,9 +224,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
     private string GenerateReturnStatement(SimpleParser.StatementContext context)
     {
         if (context.expression() != null && context.expression().Length > 0)
-        {
             SafeVisit(context.expression(0));
-        }
         code.AppendLine("ret");
         return "";
     }
@@ -274,9 +232,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
     private string GenerateExpressionStatement(SimpleParser.StatementContext context)
     {
         if (context.expression().Length > 0)
-        {
             SafeVisit(context.expression(0));
-        }
         return "";
     }
 
@@ -301,14 +257,9 @@ public class CodeGenerator : SimpleBaseVisitor<string>
             return "eax";
         }
         else if (context.binaryOp() != null && context.expression().Length == 2)
-        {
             return GenerateBinaryOperation(context);
-        }
         else if (context.expression().Length == 1)
-        {
-            // تعبيرات أحادية
             return SafeVisit(context.expression(0));
-        }
 
         return "";
     }
@@ -317,7 +268,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
     {
         SafeVisit(context.expression(0)); // الطرف الأيسر في eax
         code.AppendLine("push eax");
-        SafeVisit(context.expression(1)); // الطرف الأيمن في eax
+        SafeVisit(context.expression(1)); // الطرف الأيمن في ebx
         code.AppendLine("pop ebx");
 
         string op = context.binaryOp().GetText();
@@ -347,7 +298,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
                 code.AppendLine("setg al");
                 code.AppendLine("movzx eax, al");
                 break;
-                // أضف باقي العمليات حسب الحاجة
+                //todo أضف باقي العمليات حسب الحاجة
         }
 
         return "eax";

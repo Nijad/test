@@ -48,10 +48,10 @@ INCREMENT: '++';
 // Identifiers and literals
 IDENTIFIER: [a-zA-Z][a-zA-Z0-9_]*;
 INTEGER: [0-9]+;
-REAL: [0-9]+ '.' [0-9]* ([eE] [+-]? [0-9]+)?
-      | '.' [0-9]+ ([eE] [+-]? [0-9]+)?
-      | [0-9]+ [eE] [+-]? [0-9]+
-      ;
+REAL:
+	[0-9]+ '.' [0-9]* ([eE] [+-]? [0-9]+)?
+	| '.' [0-9]+ ([eE] [+-]? [0-9]+)?
+	| [0-9]+ [eE] [+-]? [0-9]+;
 
 // Punctuation
 LPAREN: '(';
@@ -73,7 +73,8 @@ function: (type | VOID) IDENTIFIER LPAREN arguments? RPAREN LBRACE statement* RB
 arguments: argument (COMMA argument)*;
 argument: type IDENTIFIER;
 
-struct: STRUCT IDENTIFIER (COLON IDENTIFIER)? LBRACE struct_members RBRACE;
+struct:
+	STRUCT IDENTIFIER (COLON IDENTIFIER)? LBRACE struct_members RBRACE;
 struct_members: (STATIC? type variable SEMI)*;
 
 global: type variables SEMI;
@@ -82,37 +83,46 @@ variable: IDENTIFIER | IDENTIFIER ASSIGN expression;
 
 type: BOOLEAN | INT | DOUBLE | IDENTIFIER;
 
-expression: 
-    expression DOT IDENTIFIER
-    | expression DOT IDENTIFIER ASSIGN expression
-    | IDENTIFIER LPAREN expr_list? RPAREN
-    | expression binaryOp expression
-    | INTEGER
-    | REAL
-    | TRUE
-    | FALSE
-    | NULL
-    | IDENTIFIER
-    | IDENTIFIER ASSIGN expression
-    | LPAREN expression RPAREN
-    | (PLUS | MINUS) expression
-    ;
+expression:
+	expression DOT IDENTIFIER
+	| expression DOT IDENTIFIER ASSIGN expression
+	| IDENTIFIER LPAREN expr_list? RPAREN
+	| expression binaryOp expression
+	| INTEGER
+	| REAL
+	| TRUE
+	| FALSE
+	| NULL
+	| IDENTIFIER
+	| IDENTIFIER ASSIGN expression
+	| LPAREN expression RPAREN
+	| (PLUS | MINUS) expression;
 
 expr_list: expression (COMMA expression)*;
 
-binaryOp: 
-    EQ | NEQ | LT | LE | GT | GE | 
-    PLUS | MINUS | MULT | DIV | MOD | AND | OR;
+binaryOp:
+	EQ
+	| NEQ
+	| LT
+	| LE
+	| GT
+	| GE
+	| PLUS
+	| MINUS
+	| MULT
+	| DIV
+	| MOD
+	| AND
+	| OR;
 
 statement:
-    IF LPAREN expression RPAREN statement
-    | IF LPAREN expression RPAREN statement ELSE statement
-    | WHILE LPAREN expression RPAREN statement
-    | FOR LPAREN type variables SEMI expression? SEMI expression? RPAREN statement
-    | WITH LPAREN IDENTIFIER RPAREN statement
-    | expression SEMI
-    | type variables SEMI
-    | SEMI
-    | LBRACE statement* RBRACE
-    | RETURN expression? SEMI
-    ;
+	IF LPAREN expression RPAREN statement
+	| IF LPAREN expression RPAREN statement ELSE statement
+	| WHILE LPAREN expression RPAREN statement
+	| FOR LPAREN type variables SEMI expression? SEMI expression? RPAREN statement
+	| WITH LPAREN IDENTIFIER RPAREN statement
+	| expression SEMI
+	| type variables SEMI
+	| SEMI
+	| LBRACE statement* RBRACE
+	| RETURN expression? SEMI;

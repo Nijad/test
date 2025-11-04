@@ -386,6 +386,7 @@
 //}
 
 
+using Antlr4.Runtime;
 using Antlr4.Runtime.Misc;
 using test;
 using test.Content;
@@ -409,12 +410,10 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         symbolTable.EnterScope("global");
 
         string programName = context.IDENTIFIER().GetText();
-        AddSemanticInfo($"بدء البرنامج: {programName}");
+        AddSemanticInfo($"start program: {programName}");
 
         foreach (var member in context.member())
-        {
             Visit(member);
-        }
 
         symbolTable.ExitScope();
         return null;
@@ -431,7 +430,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         symbolTable.EnterScope($"func_{functionName}");
 
         // إضافة الدالة إلى النطاق العالمي
-        var functionSymbol = new Symbol(
+        Symbol functionSymbol = new Symbol(
             functionName,
             "function",
             returnType,
@@ -441,21 +440,15 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         );
 
         if (!symbolTable.AddSymbol(functionSymbol))
-        {
-            AddSemanticError($"الدالة '{functionName}' معرفة مسبقاً", context);
-        }
+            AddSemanticError($"the function '{functionName}' is already declared", context);
 
         // معالجة الباراميترات (تضاف إلى نطاق الدالة)
         if (context.arguments() != null)
-        {
             Visit(context.arguments());
-        }
 
         // معالجة الجمل داخل الدالة
-        foreach (var stmt in context.statement())
-        {
+        foreach (SimpleParser.StatementContext? stmt in context.statement())
             Visit(stmt);
-        }
 
         symbolTable.ExitScope();
         currentFunctionReturnType = null;
@@ -467,7 +460,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         string type = context.type().GetText();
         string argName = context.IDENTIFIER().GetText();
 
-        var argSymbol = new Symbol(
+        Symbol argSymbol = new Symbol(
             argName,
             "parameter",
             type,
@@ -477,9 +470,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         );
 
         if (!symbolTable.AddSymbol(argSymbol))
-        {
-            AddSemanticError($"المعرف '{argName}' معرّف مسبقاً", context);
-        }
+            AddSemanticError($"identifier '{argName}' is already declared", context);
 
         return null;
     }
@@ -488,11 +479,11 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
     {
         string type = context.type().GetText();
 
-        foreach (var variable in context.variables().variable())
+        foreach (SimpleParser.VariableContext? variable in context.variables().variable())
         {
             string varName = variable.IDENTIFIER().GetText();
 
-            var globalSymbol = new Symbol(
+            Symbol globalSymbol = new Symbol(
                 varName,
                 "global",
                 type,
@@ -502,18 +493,14 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
             );
 
             if (!symbolTable.AddSymbol(globalSymbol))
-            {
-                AddSemanticError($"المتغير العام '{varName}' معرّف مسبقاً", variable);
-            }
+                AddSemanticError($"glogabl variable '{varName}' is already declared", variable);
 
             // التحقق من التعبير إذا وجد
             if (variable.expression() != null)
             {
                 string exprType = GetExpressionType(variable.expression());
                 if (exprType != null && !AreTypesCompatible(type, exprType))
-                {
-                    AddSemanticError($"عدم توافق الأنواع: لا يمكن تعيين {exprType} إلى {type}", variable);
-                }
+                    AddSemanticError($"type mismatch: cannot assign {exprType} to {type}", variable);
             }
         }
         return null;
@@ -528,7 +515,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
 
         if (varType != null)
         {
-            var varSymbol = new Symbol(
+            Symbol varSymbol = new Symbol(
                 varName,
                 "local",
                 varType,
@@ -538,18 +525,14 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
             );
 
             if (!symbolTable.AddSymbol(varSymbol))
-            {
-                AddSemanticError($"المتغير '{varName}' معرّف مسبقاً", context);
-            }
+                AddSemanticError($"variable '{varName}' is already declared", context);
 
             // التحقق من التعبير إذا وجد
             if (context.expression() != null)
             {
                 string exprType = GetExpressionType(context.expression());
                 if (exprType != null && !AreTypesCompatible(varType, exprType))
-                {
-                    AddSemanticError($"عدم توافق الأنواع: لا يمكن تعيين {exprType} إلى {varType}", context);
-                }
+                    AddSemanticError($"type mismatch: cannot assign {exprType} to {varType}", context);
                 return exprType;
             }
         }
@@ -560,40 +543,29 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
     public override object VisitExpression([NotNull] SimpleParser.ExpressionContext context)
     {
         if (context.INTEGER() != null)
-        {
             return "int";
-        }
         else if (context.REAL() != null)
-        {
             return "double";
-        }
         else if (context.TRUE() != null || context.FALSE() != null)
-        {
             return "bool";
-        }
         else if (context.NULL() != null)
-        {
             return "null";
-        }
         else if (context.IDENTIFIER() != null && context.expression().Length == 0)
         {
             // معالجة المعرفات البسيطة
             string varName = context.IDENTIFIER().GetText();
-            var symbol = symbolTable.Lookup(varName);
+            Symbol symbol = symbolTable.Lookup(varName);
 
-            if (symbol == null)
-            {
-                AddSemanticError($"المعرف '{varName}' غير معرّف", context);
-                return null;
-            }
+            if (symbol != null)
+                return symbol.DataType;
 
-            return symbol.DataType;
+            AddSemanticError($"Identifier '{varName}' is not declared", context);
+            return null;
+
         }
         else if (context.expression().Length == 1 && context.ASSIGN() == null)
-        {
             // تعبيرات أحادية
             return Visit(context.expression(0));
-        }
         else if (context.expression().Length == 2 && context.binaryOp() != null)
         {
             // تعبيرات ثنائية
@@ -601,9 +573,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
             string rightType = GetExpressionType(context.expression(1));
 
             if (leftType != null && rightType != null)
-            {
                 return GetBinaryOperationResultType(leftType, rightType, context.binaryOp().GetText());
-            }
         }
         else if (context.ASSIGN() != null && context.expression().Length == 2)
         {
@@ -612,9 +582,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
             string rightType = GetExpressionType(context.expression(1));
 
             if (leftType != null && rightType != null && !AreTypesCompatible(leftType, rightType))
-            {
-                AddSemanticError($"عدم توافق الأنواع في التعيين: {leftType} و {rightType}", context);
-            }
+                AddSemanticError($"type mismatch: {leftType} and {rightType}", context);
 
             return leftType;
         }
@@ -625,25 +593,15 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
     public override object VisitStatement([NotNull] SimpleParser.StatementContext context)
     {
         if (context.IF() != null)
-        {
             return VisitIfStatement(context);
-        }
         else if (context.WHILE() != null)
-        {
             return VisitWhileStatement(context);
-        }
         else if (context.FOR() != null)
-        {
             return VisitForStatement(context);
-        }
         else if (context.RETURN() != null)
-        {
             return VisitReturnStatement(context);
-        }
         else if (context.expression() != null && context.expression().Length > 0)
-        {
             return Visit(context.expression(0));
-        }
         else if (context.type() != null && context.variables() != null)
         {
             // تعريف متغير محلي - لا ندخل نطاق جديد هنا
@@ -655,10 +613,8 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         {
             // كتلة من الجمل - ندخل نطاق جديد للكتلة
             symbolTable.EnterScope($"block_{context.Start.Line}");
-            foreach (var stmt in context.statement())
-            {
+            foreach (SimpleParser.StatementContext? stmt in context.statement())
                 Visit(stmt);
-            }
             symbolTable.ExitScope();
             return null;
         }
@@ -673,18 +629,12 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
             string returnType = GetExpressionType(context.expression(0));
 
             if (returnType == null)
-            {
-                AddSemanticError("تعذر تحديد نوع التعبير في جملة الإرجاع", context);
-            }
+                AddSemanticError("Can not detect expression type in return statement", context);
             else if (currentFunctionReturnType != "void" && !AreTypesCompatible(currentFunctionReturnType, returnType))
-            {
-                AddSemanticError($"نوع الإرجاع {returnType} لا يتوافق مع نوع الدالة {currentFunctionReturnType}", context);
-            }
+                AddSemanticError($"return type {returnType} is not match with function type{currentFunctionReturnType}", context);
         }
         else if (currentFunctionReturnType != "void")
-        {
-            AddSemanticError("الدالة يجب أن ترجع قيمة", context);
-        }
+            AddSemanticError("Funciton must return value", context);
 
         return null;
     }
@@ -692,25 +642,19 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
     // الدوال المساعدة المحسنة
     private string GetVariableTypeFromContext(SimpleParser.VariableContext context)
     {
-        var parent = context.Parent;
+        RuleContext parent = context.Parent;
         while (parent != null)
         {
             if (parent is SimpleParser.GlobalContext globalContext)
-            {
                 return globalContext.type().GetText();
-            }
             else if (parent is SimpleParser.VariablesContext variablesContext)
             {
-                var grandParent = variablesContext.Parent;
+                RuleContext grandParent = variablesContext.Parent;
                 if (grandParent is SimpleParser.GlobalContext global)
-                {
                     return global.type().GetText();
-                }
                 else if (grandParent is SimpleParser.StatementContext statement)
-                {
                     // متغير محلي داخل دالة
                     return statement.type().GetText();
-                }
             }
             parent = parent.Parent;
         }
@@ -719,7 +663,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
 
     private string GetExpressionType(SimpleParser.ExpressionContext context)
     {
-        var result = Visit(context);
+        object result = Visit(context);
         return result as string;
     }
 
@@ -760,13 +704,13 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
                 break;
         }
 
-        AddSemanticInfo($"عملية غير مدعومة: {leftType} {op} {rightType}");
+        AddSemanticInfo($"Operation is not supported: {leftType} {op} {rightType}");
         return null;
     }
 
     private void AddSemanticError(string message, Antlr4.Runtime.ParserRuleContext context)
     {
-        string error = $"خطأ دلالي في السطر {context.Start.Line}: {message}";
+        string error = $"Semantic error at line {context.Start.Line}: {message}";
         semanticErrors.Add(error);
         Console.WriteLine($"❌ {error}");
     }
@@ -782,9 +726,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         if (context == null) return null;
 
         if (visitedNodes.Contains(context))
-        {
             return null; // تجنب الزيارة المتكررة لنفس العقدة
-        }
 
         visitedNodes.Add(context);
         try
@@ -803,20 +745,14 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         {
             string conditionType = SafeVisit(context.expression(0)) as string;
             if (conditionType != "bool")
-            {
-                AddSemanticError("شرط if يجب أن يكون من النوع boolean", context);
-            }
+                AddSemanticError("if condition must be boolean", context);
         }
 
         if (context.statement().Length > 0)
-        {
             SafeVisit(context.statement(0)); // جملة if
-        }
 
         if (context.ELSE() != null && context.statement().Length > 1)
-        {
             SafeVisit(context.statement(1)); // جملة else
-        }
 
         return null;
     }
@@ -827,15 +763,11 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         {
             string conditionType = SafeVisit(context.expression(0)) as string;
             if (conditionType != "bool")
-            {
-                AddSemanticError("شرط while يجب أن يكون من النوع boolean", context);
-            }
+                AddSemanticError("while condition must be boolean", context);
         }
 
         if (context.statement().Length > 0)
-        {
             SafeVisit(context.statement(0));
-        }
 
         return null;
     }
@@ -853,22 +785,16 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         {
             string conditionType = SafeVisit(context.expression(0)) as string;
             if (conditionType != "bool")
-            {
-                AddSemanticError("شرط for يجب أن يكون من النوع boolean", context);
-            }
+                AddSemanticError("for condition must be boolean", context);
         }
 
         // التحديث
         if (context.expression().Length > 1)
-        {
             SafeVisit(context.expression(1));
-        }
 
         // جملة for
         if (context.statement().Length > 0)
-        {
             SafeVisit(context.statement(0));
-        }
 
         symbolTable.ExitScope();
         return null;

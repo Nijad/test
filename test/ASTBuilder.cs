@@ -41,7 +41,6 @@ namespace test
             };
 
             if (context.arguments() != null)
-            {
                 foreach (SimpleParser.ArgumentContext? arg in context.arguments().argument())
                 {
                     ParameterNode paramNode = new ParameterNode
@@ -53,7 +52,6 @@ namespace test
                     };
                     node.Parameters.Add(paramNode);
                 }
-            }
 
             foreach (SimpleParser.StatementContext? stmt in context.statement())
             {
@@ -65,22 +63,21 @@ namespace test
             return node;
         }
 
-        // يمكنك إضافة المزيد من دوال Visit هنا لباقي العقد
+        //todo يمكنك إضافة المزيد من دوال Visit هنا لباقي العقد
 
         public override ASTNode VisitExpression(SimpleParser.ExpressionContext context)
         {
-            if (context.INTEGER() != null)
+            if (context.INTEGER() == null)
+                //todo أضف معالجة أنواع التعبيرات الأخرى
+                return null;
+
+            return new IntegerNode
             {
-                return new IntegerNode
-                {
-                    Line = context.Start.Line,
-                    Column = context.Start.Column,
-                    Value = int.Parse(context.INTEGER().GetText()),
-                    Type = "int"
-                };
-            }
-            // أضف معالجة أنواع التعبيرات الأخرى
-            return null;
+                Line = context.Start.Line,
+                Column = context.Start.Column,
+                Value = int.Parse(context.INTEGER().GetText()),
+                Type = "int"
+            };
         }
     }
 }

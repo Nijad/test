@@ -23,9 +23,7 @@ namespace test
         public void PrintErrors()
         {
             foreach (var error in Errors)
-            {
                 Console.WriteLine(error);
-            }
         }
     }
 }

@@ -6,19 +6,19 @@ namespace test
     {
         public override object VisitProgram(SimpleParser.ProgramContext context)
         {
-            Console.WriteLine($"زيارة البرنامج: {context.IDENTIFIER()?.GetText()}");
+            Console.WriteLine($"visiting program: {context.IDENTIFIER()?.GetText()}");
             return base.VisitProgram(context);
         }
 
         public override object VisitFunction(SimpleParser.FunctionContext context)
         {
-            Console.WriteLine($"زيارة الدالة: {context.IDENTIFIER()?.GetText()}");
+            Console.WriteLine($"visiting function: {context.IDENTIFIER()?.GetText()}");
             return base.VisitFunction(context);
         }
 
         public override object VisitExpression(SimpleParser.ExpressionContext context)
         {
-            Console.WriteLine($"زيارة تعبير: {context.GetText()}");
+            Console.WriteLine($"visiting expression: {context.GetText()}");
             return base.VisitExpression(context);
         }
     }

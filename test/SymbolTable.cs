@@ -17,7 +17,7 @@ public class SymbolTable
     {
         scopes.Push(new Dictionary<string, Symbol>());
         scopeNames.Push(scopeName);
-        Console.WriteLine($"الدخول إلى النطاق: {scopeName}");
+        Console.WriteLine($"scope enter: {scopeName}");
     }
 
     public void ExitScope()
@@ -26,7 +26,7 @@ public class SymbolTable
         {
             string exitedScope = scopeNames.Pop();
             scopes.Pop();
-            Console.WriteLine($"الخروج من النطاق: {exitedScope}");
+            Console.WriteLine($"scope exit: {exitedScope}");
         }
     }
 
@@ -34,27 +34,27 @@ public class SymbolTable
     {
         if (scopes.Peek().ContainsKey(symbol.Name))
         {
-            Console.WriteLine($"تحذير: الرمز '{symbol.Name}' موجود مسبقاً في النطاق '{CurrentScope}'");
+            Console.WriteLine($"worning: symbole '{symbol.Name}' is already existed in the scope '{CurrentScope}'");
             return false;
         }
 
         scopes.Peek()[symbol.Name] = symbol;
-        Console.WriteLine($"إضافة الرمز: {symbol.Name} من النوع {symbol.DataType} في النطاق {CurrentScope}");
+        Console.WriteLine($"adding symbole: {symbol.Name} with type {symbol.DataType} in the scope {CurrentScope}");
         return true;
     }
 
     public Symbol Lookup(string name)
     {
         // البحث من الأعلى إلى الأسفل (من أحدث نطاق إلى أقدم نطاق)
-        foreach (var scope in scopes)
+        foreach (Dictionary<string, Symbol> scope in scopes)
         {
             if (scope.ContainsKey(name))
             {
-                Console.WriteLine($"تم العثور على الرمز '{name}' في النطاق الحالي");
+                Console.WriteLine($"symbole '{name}' was found in current scope");
                 return scope[name];
             }
         }
-        Console.WriteLine($"الرمز '{name}' غير موجود في أي نطاق");
+        Console.WriteLine($"symbole '{name}' is not exist in the scope");
         return null;
     }
 
@@ -62,16 +62,16 @@ public class SymbolTable
     {
         if (scopes.Peek().ContainsKey(name))
         {
-            Console.WriteLine($"تم العثور على الرمز '{name}' في النطاق الحالي '{CurrentScope}'");
+            Console.WriteLine($"symbole '{name}' was found in current scope '{CurrentScope}'");
             return scopes.Peek()[name];
         }
-        Console.WriteLine($"الرمز '{name}' غير موجود في النطاق الحالي '{CurrentScope}'");
+        Console.WriteLine($"symbole '{name}' is not exist in current scope '{CurrentScope}'");
         return null;
     }
 
     public void PrintCurrentScope()
     {
-        Console.WriteLine($"=== الرموز في النطاق '{CurrentScope}' ===");
+        Console.WriteLine($"=== symbole in scope '{CurrentScope}' ===");
         foreach (var symbol in scopes.Peek().Values)
         {
             Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");
@@ -81,12 +81,12 @@ public class SymbolTable
 
     public void PrintAllScopes()
     {
-        Console.WriteLine("=== جميع النطاقات والرموز ===");
+        Console.WriteLine("=== all scopes and symbols ===");
         int scopeIndex = 0;
         foreach (var scope in scopes)
         {
             string scopeName = scopeNames.ElementAt(scopeIndex);
-            Console.WriteLine($"النطاق: {scopeName}");
+            Console.WriteLine($"scope: {scopeName}");
             foreach (var symbol in scope.Values)
             {
                 Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");

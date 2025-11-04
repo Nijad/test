@@ -112,33 +112,33 @@ public class Program
             //                        }
             //                    }";
 
-            Console.WriteLine("بدء التحليل...");
+            Console.WriteLine("start analysing...");
 
-            var inputStream = new AntlrInputStream(inputCode);
-            var lexer = new SimpleLexer(inputStream);
-            var tokenStream = new CommonTokenStream(lexer);
+            AntlrInputStream inputStream = new AntlrInputStream(inputCode);
+            SimpleLexer lexer = new SimpleLexer(inputStream);
+            CommonTokenStream tokenStream = new CommonTokenStream(lexer);
 
-            var parser = new SimpleParser(tokenStream);
-            var errorListener = new ErrorListener();
+            SimpleParser parser = new SimpleParser(tokenStream);
+            ErrorListener errorListener = new ErrorListener();
             parser.AddErrorListener(errorListener);
 
-            Console.WriteLine("جاري التحليل النحوي...");
-            var tree = parser.program();
+            Console.WriteLine("syntax analysing is processing...");
+            SimpleParser.ProgramContext tree = parser.program();
 
             if (errorListener.HasErrors)
             {
-                Console.WriteLine("تم اكتشاف أخطاء نحوية:");
+                Console.WriteLine("Syntax Error:");
                 errorListener.PrintErrors();
                 return;
             }
 
-            Console.WriteLine("✅ التحليل النحوي تم بنجاح!");
+            Console.WriteLine("✅ Syntax parsing was done successfuly!");
 
-            var symbolTable = new SymbolTable();
-            var semanticErrors = new List<string>();
+            SymbolTable symbolTable = new SymbolTable();
+            List<string> semanticErrors = new List<string>();
 
-            Console.WriteLine("جاري التحليل الدلالي وبناء جدول الرموز...");
-            var visitor = new SimpleVisitor(symbolTable, semanticErrors);
+            Console.WriteLine("building symbol table and semantic analysis...");
+            SimpleVisitor visitor = new SimpleVisitor(symbolTable, semanticErrors);
             visitor.Visit(tree);
 
             // طباعة جدول الرموز الكامل
@@ -146,27 +146,25 @@ public class Program
 
             if (semanticErrors.Count > 0)
             {
-                Console.WriteLine("❌ تم اكتشاف أخطاء دلالية:");
+                Console.WriteLine("❌ Semantic Error:");
                 foreach (var error in semanticErrors)
-                {
                     Console.WriteLine(error);
-                }
             }
             else
             {
-                Console.WriteLine("✅ التحليل الدلالي تم بنجاح!");
+                Console.WriteLine("✅ Semantic analysis was done successfuly!");
 
                 // اختبار البحث عن رموز
-                Console.WriteLine("اختبار البحث في جدول الرموز:");
-                TestSymbolLookup(symbolTable, "globalVar");
-                TestSymbolLookup(symbolTable, "x");
-                TestSymbolLookup(symbolTable, "main");
-                TestSymbolLookup(symbolTable, "param");
-                TestSymbolLookup(symbolTable, "unknownVar");
+                //Console.WriteLine("test search in symbole table:");
+                //TestSymbolLookup(symbolTable, "globalVar");
+                //TestSymbolLookup(symbolTable, "x");
+                //TestSymbolLookup(symbolTable, "main");
+                //TestSymbolLookup(symbolTable, "param");
+                //TestSymbolLookup(symbolTable, "unknownVar");
 
                 // بناء شجرة الـ AST
-                var astBuilder = new ASTBuilder(symbolTable);
-                var ast = astBuilder.Visit(tree);
+                ASTBuilder astBuilder = new ASTBuilder(symbolTable);
+                ASTNode ast = astBuilder.Visit(tree);
 
                 // طباعة جدول الرموز (لأغراض التصحيح)
                 //symbolTable.PrintSymbolTable();
@@ -182,21 +180,17 @@ public class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ خطأ: {ex.Message}");
-            Console.WriteLine($"تفاصيل: {ex.StackTrace}");
+            Console.WriteLine($"❌ error: {ex.Message}");
+            Console.WriteLine($"details: {ex.StackTrace}");
         }
     }
 
     private static void TestSymbolLookup(SymbolTable symbolTable, string symbolName)
     {
-        var symbol = symbolTable.Lookup(symbolName);
+        Symbol symbol = symbolTable.Lookup(symbolName);
         if (symbol != null)
-        {
-            Console.WriteLine($"✅ وجد: {symbolName} -> {symbol.DataType} في نطاق {symbol.Scope}");
-        }
+            Console.WriteLine($"✅ {symbolName} -> {symbol.DataType} is found in scope {symbol.Scope}");
         else
-        {
-            Console.WriteLine($"❌ لم يتم العثور على: {symbolName}");
-        }
+            Console.WriteLine($"❌ {symbolName} was not found");
     }
 }
