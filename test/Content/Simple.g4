@@ -96,7 +96,8 @@ expression:
 	| IDENTIFIER
 	| IDENTIFIER ASSIGN expression
 	| LPAREN expression RPAREN
-	| (PLUS | MINUS) expression;
+	| (PLUS | MINUS) expression
+	| expression INCREMENT;
 
 expr_list: expression (COMMA expression)*;
 

@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/test/Content/.gen/
+/test/Content/bin/
+/test/Content/obj/
+/test/Content/.antlr/
+
