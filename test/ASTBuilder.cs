@@ -1,4 +1,6 @@
-﻿using test.Content;
+﻿using Antlr4.Runtime.Tree;
+using test.Content;
+using static test.Content.SimpleParser;
 
 namespace test
 {
@@ -11,7 +13,7 @@ namespace test
             this.symbolTable = symbolTable;
         }
 
-        public override ASTNode VisitProgram(SimpleParser.ProgramContext context)
+        public override ASTNode VisitProgram(ProgramContext context)
         {
             ProgramNode node = new ProgramNode
             {
@@ -20,7 +22,7 @@ namespace test
                 Name = context.IDENTIFIER().GetText()
             };
 
-            foreach (SimpleParser.MemberContext? member in context.member())
+            foreach (MemberContext? member in context.member())
             {
                 ASTNode memberNode = Visit(member);
                 if (memberNode != null)
@@ -30,7 +32,7 @@ namespace test
             return node;
         }
 
-        public override ASTNode VisitFunction(SimpleParser.FunctionContext context)
+        public override ASTNode VisitFunction(FunctionContext context)
         {
             FunctionNode node = new FunctionNode
             {
@@ -41,7 +43,7 @@ namespace test
             };
 
             if (context.arguments() != null)
-                foreach (SimpleParser.ArgumentContext? arg in context.arguments().argument())
+                foreach (ArgumentContext? arg in context.arguments().argument())
                 {
                     ParameterNode paramNode = new ParameterNode
                     {
@@ -53,7 +55,7 @@ namespace test
                     node.Parameters.Add(paramNode);
                 }
 
-            foreach (SimpleParser.StatementContext? stmt in context.statement())
+            foreach (StatementContext? stmt in context.statement())
             {
                 StatementNode? stmtNode = Visit(stmt) as StatementNode;
                 if (stmtNode != null)
@@ -63,21 +65,427 @@ namespace test
             return node;
         }
 
-        //todo يمكنك إضافة المزيد من دوال Visit هنا لباقي العقد
-
-        public override ASTNode VisitExpression(SimpleParser.ExpressionContext context)
+        public override ASTNode VisitGlobal(GlobalContext context)
         {
-            if (context.INTEGER() == null)
-                //todo أضف معالجة أنواع التعبيرات الأخرى
-                return null;
-
-            return new IntegerNode
+            GlobalVariableNode node = new GlobalVariableNode
             {
                 Line = context.Start.Line,
                 Column = context.Start.Column,
-                Value = int.Parse(context.INTEGER().GetText()),
-                Type = "int"
+                Type = context.type().GetText()
             };
+
+            foreach (VariableContext? variable in context.variables().variable())
+            {
+                VariableDeclNode varNode = new VariableDeclNode
+                {
+                    Line = variable.Start.Line,
+                    Column = variable.Start.Column,
+                    Name = variable.IDENTIFIER().GetText(),
+                    Type = context.type().GetText()
+                };
+
+                if (variable.expression() != null)
+                    varNode.InitialValue = Visit(variable.expression()) as ExpressionNode;
+
+                node.Variables.Add(varNode);
+            }
+
+            return node;
+        }
+
+        public override ASTNode VisitStruct(StructContext context)
+        {
+            StructNode node = new StructNode
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column,
+                Name = context.IDENTIFIER(0).GetText(),
+                Parent = context.IDENTIFIER(1)?.GetText()
+            };
+
+            if (context.struct_members() != null)
+            {
+                StructMembersNode membersNode = VisitStruct_members(context.struct_members()) as StructMembersNode;
+                if (membersNode != null)
+                    node.Members = membersNode;
+            }
+
+            return node;
+        }
+
+        public override ASTNode VisitStruct_members(Struct_membersContext context)
+        {
+            if (context == null) return null;
+
+            // إنشاء عقدة تمثل مجموعة أعضاء الهيكل
+            StructMembersNode node = new StructMembersNode
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column
+            };
+
+            // معالجة جميع الأعضاء في الهيكل
+            foreach (IParseTree child in context.children)
+                if (child is Struct_memberContext memberContext)
+                {
+                    StructMemberNode memberNode = VisitStruct_member(memberContext) as StructMemberNode;
+                    if (memberNode != null)
+                        node.Members.Add(memberNode);
+                }
+
+            return node;
+        }
+
+        public override ASTNode VisitStruct_member(Struct_memberContext context)
+        {
+            if (context == null) return null;
+
+            StructMemberNode memberNode = new StructMemberNode
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column,
+                IsStatic = context.STATIC() != null,
+                Type = context.type().GetText()
+            };
+
+            // معالجة المتغير داخل العضو
+            if (context.variable() != null)
+            {
+                memberNode.Name = context.variable().IDENTIFIER().GetText();
+
+                if (context.variable().expression() != null)
+                    memberNode.InitialValue = Visit(context.variable().expression()) as ExpressionNode;
+            }
+
+            return memberNode;
+        }
+
+        public override ASTNode VisitStatement(StatementContext context)
+        {
+            if (context.IF() != null)
+            {
+                return VisitIfStatement(context);
+            }
+            else if (context.WHILE() != null)
+            {
+                return VisitWhileStatement(context);
+            }
+            else if (context.FOR() != null)
+            {
+                return VisitForStatement(context);
+            }
+            else if (context.RETURN() != null)
+            {
+                return VisitReturnStatement(context);
+            }
+            else if (context.expression() != null && context.expression().Length > 0)
+            {
+                return new ExpressionStatementNode
+                {
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Expression = Visit(context.expression(0)) as ExpressionNode
+                };
+            }
+            else if (context.LBRACE() != null)
+            {
+                return VisitBlockStatement(context);
+            }
+            else if (context.type() != null && context.variables() != null)
+            {
+                return VisitVariableDeclaration(context);
+            }
+
+            return null;
+        }
+
+        private ASTNode VisitIfStatement(StatementContext context)
+        {
+            IfStatementNode node = new IfStatementNode
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column,
+                Condition = Visit(context.expression(0)) as ExpressionNode,
+                ThenStatement = Visit(context.statement(0)) as StatementNode
+            };
+
+            if (context.ELSE() != null && context.statement().Length > 1)
+                node.ElseStatement = Visit(context.statement(1)) as StatementNode;
+
+            return node;
+        }
+
+        private ASTNode VisitWhileStatement(StatementContext context)
+        {
+            return new WhileStatementNode
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column,
+                Condition = Visit(context.expression(0)) as ExpressionNode,
+                Body = Visit(context.statement(0)) as StatementNode
+            };
+        }
+
+        private ASTNode VisitForStatement(StatementContext context)
+        {
+            ForStatementNode node = new ForStatementNode
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column
+            };
+
+            // جملة for تحتوي على: for ( <Type> <Variables> ; <Expression>? ; <Expression>? ) <Statement>
+
+            // 1. معالجة التهيئة (تعريف المتغيرات)
+            if (context.type() != null && context.variables() != null)
+                node.Initialization = VisitVariableDeclaration(context);
+
+            // 2. معالجة الشرط (إذا وجد)
+            if (context.expression().Length > 0 && context.expression(0) != null)
+                node.Condition = Visit(context.expression(0)) as ExpressionNode;
+
+            // 3. معالجة التحديث (إذا وجد)
+            if (context.expression().Length > 1 && context.expression(1) != null)
+                node.Update = Visit(context.expression(1)) as ExpressionNode;
+
+            // 4. معالجة جسم for
+            if (context.statement().Length > 0 && context.statement(0) != null)
+                node.Body = Visit(context.statement(0)) as StatementNode;
+
+            return node;
+        }
+
+        private ASTNode VisitReturnStatement(StatementContext context)
+        {
+            ReturnStatementNode node = new ReturnStatementNode
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column
+            };
+
+            if (context.expression() != null && context.expression().Length > 0)
+                node.Value = Visit(context.expression(0)) as ExpressionNode;
+
+            return node;
+        }
+
+        private ASTNode VisitBlockStatement(StatementContext context)
+        {
+            BlockStatementNode node = new BlockStatementNode
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column
+            };
+
+            foreach (StatementContext? stmt in context.statement())
+            {
+                StatementNode stmtNode = Visit(stmt) as StatementNode;
+                if (stmtNode != null)
+                    node.Statements.Add(stmtNode);
+            }
+
+            return node;
+        }
+
+        private ASTNode VisitVariableDeclaration(StatementContext context)
+        {
+            VariableDeclarationNode node = new VariableDeclarationNode
+            {
+                Line = context.Start.Line,
+                Column = context.Start.Column,
+                Type = context.type().GetText()
+            };
+
+            // معالجة تعريف المتغيرات المحلية
+            foreach (VariableContext? variable in context.variables().variable())
+            {
+                VariableDeclNode varNode = new VariableDeclNode
+                {
+                    Line = variable.Start.Line,
+                    Column = variable.Start.Column,
+                    Name = variable.IDENTIFIER().GetText(),
+                    Type = context.type().GetText()
+                };
+
+                if (variable.expression() != null)
+                    varNode.InitialValue = Visit(variable.expression()) as ExpressionNode;
+
+                node.Variables.Add(varNode);
+            }
+
+            return node;
+        }
+
+        public override ASTNode VisitExpression(ExpressionContext context)
+        {
+            if (context.INTEGER() != null)
+            {
+                return new IntegerNode
+                {
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Value = int.Parse(context.INTEGER().GetText()),
+                    Type = "int"
+                };
+            }
+            else if (context.REAL() != null)
+            {
+                return new RealNode
+                {
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Value = double.Parse(context.REAL().GetText()),
+                    Type = "double"
+                };
+            }
+            else if (context.TRUE() != null)
+            {
+                return new BooleanNode
+                {
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Value = true,
+                    Type = "bool"
+                };
+            }
+            else if (context.FALSE() != null)
+            {
+                return new BooleanNode
+                {
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Value = false,
+                    Type = "bool"
+                };
+            }
+            else if (context.NULL() != null)
+            {
+                return new NullNode
+                {
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Type = "null"
+                };
+            }
+            else if (context.IDENTIFIER() != null)
+            {
+                if (context.ASSIGN() != null && context.expression().Length == 2)
+                {
+                    // Assignment expression
+                    return new BinaryExpressionNode
+                    {
+                        Line = context.Start.Line,
+                        Column = context.Start.Column,
+                        Left = new IdentifierNode
+                        {
+                            Line = context.Start.Line,
+                            Column = context.Start.Column,
+                            Name = context.IDENTIFIER().GetText(),
+                            Type = "identifier"
+                        },
+                        Operator = "=",
+                        Right = Visit(context.expression(1)) as ExpressionNode,
+                        Type = "assignment"
+                    };
+                }
+                else if (context.expression().Length == 0)
+                {
+                    // Simple identifier
+                    return new IdentifierNode
+                    {
+                        Line = context.Start.Line,
+                        Column = context.Start.Column,
+                        Name = context.IDENTIFIER().GetText(),
+                        Type = "identifier"
+                    };
+                }
+            }
+            else if (context.binaryOp() != null && context.expression().Length == 2)
+            {
+                // Binary operation
+                return new BinaryExpressionNode
+                {
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Left = Visit(context.expression(0)) as ExpressionNode,
+                    Operator = context.binaryOp().GetText(),
+                    Right = Visit(context.expression(1)) as ExpressionNode,
+                    Type = GetBinaryExpressionType(context.binaryOp().GetText())
+                };
+            }
+            else if (context.expression().Length == 1 && context.ASSIGN() == null)
+            {
+                // Unary expression or parenthesized expression
+                return Visit(context.expression(0));
+            }
+            else if (context.INCREMENT() != null || context.DECREMENT() != null)
+            {
+                return VisitIncrementDecrementExpression(context);
+            }
+
+            return null;
+        }
+
+        private string GetBinaryExpressionType(string operator_)
+        {
+            switch (operator_)
+            {
+                case "+":
+                case "-":
+                case "*":
+                case "/":
+                case "%":
+                    return "arithmetic";
+                case "==":
+                case "!=":
+                case "<":
+                case "<=":
+                case ">":
+                case ">=":
+                    return "comparison";
+                case "&&":
+                case "||":
+                    return "logical";
+                default:
+                    return "binary";
+            }
+        }
+
+        public override ASTNode VisitMember(MemberContext context)
+        {
+            if (context.function() != null)
+                return Visit(context.function());
+            else if (context.@struct() != null)
+                return Visit(context.@struct());
+            else if (context.global() != null)
+                return Visit(context.global());
+
+            return null;
+        }
+
+        private ASTNode VisitIncrementDecrementExpression(ExpressionContext context)
+        {
+            bool isIncrement = context.INCREMENT() != null;
+            bool isPrefix = context.GetChild(0) is ITerminalNode;
+
+            string operatorType = isIncrement ? "increment" : "decrement";
+
+            if (context.expression(0) != null)
+            {
+                ExpressionNode? operand = Visit(context.expression(0)) as ExpressionNode;
+
+                return new UnaryExpressionNode
+                {
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Operator = isIncrement ? "++" : "--",
+                    Operand = operand,
+                    IsPrefix = isPrefix,
+                    Type = operand?.Type ?? "int"
+                };
+            }
+
+            return null;
         }
     }
 }

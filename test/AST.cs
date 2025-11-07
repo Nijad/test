@@ -37,6 +37,11 @@
     {
         public string Name { get; set; }
         public string Parent { get; set; }
+        public StructMembersNode Members { get; set; } = new StructMembersNode();
+    }
+
+    public class StructMembersNode : ASTNode
+    {
         public List<StructMemberNode> Members { get; set; } = new List<StructMemberNode>();
     }
 
@@ -143,5 +148,29 @@
     public class BlockStatementNode : StatementNode
     {
         public List<StatementNode> Statements { get; set; } = new List<StatementNode>();
+    }
+
+    // عقدة تعريف المتغير (ليست تعبيراً)
+    public class VariableDeclarationNode : StatementNode
+    {
+        public string Type { get; set; }
+        public List<VariableDeclNode> Variables { get; set; } = new List<VariableDeclNode>();
+    }
+
+    // عقدة العملية الأحادية
+    public class UnaryExpressionNode : ExpressionNode
+    {
+        public string Operator { get; set; } // "++", "--", "+", "-", "!"
+        public ExpressionNode Operand { get; set; }
+        public bool IsPrefix { get; set; } // true للبادئة، false للاحقة
+    }
+
+    // عقدة جملة for
+    public class ForStatementNode : StatementNode
+    {
+        public ASTNode Initialization { get; set; }  // تعريف المتغيرات
+        public ExpressionNode Condition { get; set; } // الشرط
+        public ExpressionNode Update { get; set; }    // التحديث
+        public StatementNode Body { get; set; }       // جسم for
     }
 }

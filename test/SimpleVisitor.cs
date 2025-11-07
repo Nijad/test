@@ -1,5 +1,6 @@
 ﻿using Antlr4.Runtime;
 using Antlr4.Runtime.Misc;
+using Antlr4.Runtime.Tree;
 using test;
 using test.Content;
 
@@ -14,7 +15,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
     {
         this.symbolTable = symbolTable;
         this.semanticErrors = semanticErrors;
-        this.visitedNodes = new HashSet<Antlr4.Runtime.ParserRuleContext>();
+        visitedNodes = new HashSet<Antlr4.Runtime.ParserRuleContext>();
     }
 
     public override object VisitProgram([NotNull] SimpleParser.ProgramContext context)
@@ -198,7 +199,8 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
 
             return leftType;
         }
-
+        else if (context.INCREMENT() != null || context.DECREMENT() != null)
+            return VisitIncrementDecrementExpression(context);
         return null;
     }
 
@@ -216,7 +218,7 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
             return Visit(context.expression(0));
         else if (context.type() != null && context.variables() != null)
         {
-            // تعريف متغير محلي - لا ندخل نطاق جديد هنا
+            // تعريف متغير محلي
             Visit(context.type());
             Visit(context.variables());
             return null;
@@ -251,7 +253,6 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         return null;
     }
 
-    // الدوال المساعدة المحسنة
     private string GetVariableTypeFromContext(SimpleParser.VariableContext context)
     {
         RuleContext parent = context.Parent;
@@ -332,13 +333,12 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
         Console.WriteLine($"{message}");
     }
 
-    // منع التكرار اللانهائي
     private object SafeVisit(Antlr4.Runtime.ParserRuleContext context)
     {
         if (context == null) return null;
 
         if (visitedNodes.Contains(context))
-            return null; // تجنب الزيارة المتكررة لنفس العقدة
+            return null;
 
         visitedNodes.Add(context);
         try
@@ -410,5 +410,39 @@ public class SimpleVisitor : SimpleBaseVisitor<object>
 
         symbolTable.ExitScope();
         return null;
+    }
+
+    private object VisitIncrementDecrementExpression(SimpleParser.ExpressionContext context)
+    {
+        bool isIncrement = context.INCREMENT() != null;
+        bool isPrefix = context.expression().Length == 1 &&
+                       (context.INCREMENT() != null || context.DECREMENT() != null) &&
+                       context.GetChild(0) is ITerminalNode;
+
+        string varName = null;
+        if (context.expression(0) != null && context.expression(0).IDENTIFIER() != null)
+        {
+            varName = context.expression(0).IDENTIFIER().GetText();
+        }
+
+        // التحقق من وجود المتغير
+        if (varName != null)
+        {
+            Symbol symbol = symbolTable.Lookup(varName);
+            if (symbol == null)
+            {
+                AddSemanticError($"Identifier '{varName}' is not declared", context);
+                return null;
+            }
+
+            // التحقق من أن النوع رقمي
+            if (symbol.DataType != "int" && symbol.DataType != "double")
+            {
+                AddSemanticError($"Can not apply increament '++' or decreament '--' on the type {symbol.DataType}", context);
+                return null;
+            }
+        }
+
+        return isIncrement ? "int" : "int"; // الناتج دائماً int
     }
 }

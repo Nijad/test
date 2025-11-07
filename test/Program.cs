@@ -46,7 +46,7 @@ public class Program
             if (semanticErrors.Count > 0)
             {
                 Console.WriteLine("Semantic Error:");
-                foreach (var error in semanticErrors)
+                foreach (string error in semanticErrors)
                     Console.WriteLine(error);
                 return;
             }
@@ -68,7 +68,7 @@ public class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ error: {ex.Message}");
+            Console.WriteLine($"error: {ex.Message}");
             Console.WriteLine($"details: {ex.StackTrace}");
         }
     }

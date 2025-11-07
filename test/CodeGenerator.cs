@@ -1,5 +1,5 @@
-﻿using System.Text;
-using test;
+﻿using Antlr4.Runtime.Tree;
+using System.Text;
 using test.Content;
 
 public class CodeGenerator : SimpleBaseVisitor<string>
@@ -68,7 +68,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
         code.AppendLine($"start:");
 
         // توليد دوال البرنامج
-        foreach (var member in context.member())
+        foreach (SimpleParser.MemberContext? member in context.member())
             if (member.function() != null)
                 SafeVisit(member.function());
 
@@ -104,7 +104,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
     // التصحيح الحاسم: تجاوز VisitStatement بشكل صحيح
     public override string VisitStatement(SimpleParser.StatementContext context)
     {
-        if (context == null) 
+        if (context == null)
             return "";
 
         // تحقق من نوع الجملة وعالجها بشكل مناسب
@@ -120,7 +120,6 @@ public class CodeGenerator : SimpleBaseVisitor<string>
             return GenerateExpressionStatement(context);
         else if (context.LBRACE() != null)
         {
-            // كتلة من الجمل - استخدم SafeVisit للجمل الداخلية
             foreach (SimpleParser.StatementContext? stmt in context.statement())
                 SafeVisit(stmt);
             return "";
@@ -135,7 +134,6 @@ public class CodeGenerator : SimpleBaseVisitor<string>
         return "";
     }
 
-    // تجنب استدعاء Visit في الدوال المساعدة - استخدم Generation المباشر
     private string GenerateIfStatement(SimpleParser.StatementContext context)
     {
         string elseLabel = $"L_else_{labelCounter}";
@@ -243,7 +241,8 @@ public class CodeGenerator : SimpleBaseVisitor<string>
             code.AppendLine($"mov eax, {context.INTEGER().GetText()}");
             return "eax";
         }
-        else if (context.IDENTIFIER() != null && context.ASSIGN() == null)
+        else if (context.IDENTIFIER() != null && context.ASSIGN() == null &&
+                 context.INCREMENT() == null && context.DECREMENT() == null)
         {
             string varName = context.IDENTIFIER().GetText();
             code.AppendLine($"mov eax, {varName}");
@@ -252,14 +251,22 @@ public class CodeGenerator : SimpleBaseVisitor<string>
         else if (context.ASSIGN() != null && context.expression().Length == 2)
         {
             string varName = context.IDENTIFIER().GetText();
-            SafeVisit(context.expression(1)); // قيمة التعيين في eax
+            SafeVisit(context.expression(1));
             code.AppendLine($"mov {varName}, eax");
             return "eax";
         }
         else if (context.binaryOp() != null && context.expression().Length == 2)
+        {
             return GenerateBinaryOperation(context);
+        }
+        else if (context.INCREMENT() != null || context.DECREMENT() != null)
+        {
+            return GenerateIncrementDecrement(context);
+        }
         else if (context.expression().Length == 1)
+        {
             return SafeVisit(context.expression(0));
+        }
 
         return "";
     }
@@ -288,17 +295,57 @@ public class CodeGenerator : SimpleBaseVisitor<string>
                 code.AppendLine("xor edx, edx");
                 code.AppendLine("idiv ebx");
                 break;
+            case "%":
+                code.AppendLine("xor edx, edx");
+                code.AppendLine("idiv ebx");
+                code.AppendLine("mov eax, edx"); // الباقي في edx
+                break;
             case "==":
-                code.AppendLine("cmp ebx, eax");
+                code.AppendLine("cmp eax, ebx");
                 code.AppendLine("sete al");
                 code.AppendLine("movzx eax, al");
                 break;
+            case "!=":
+                code.AppendLine("cmp eax, ebx");
+                code.AppendLine("setne al");
+                code.AppendLine("movzx eax, al");
+                break;
+            case "<":
+                code.AppendLine("cmp eax, ebx");
+                code.AppendLine("setl al");
+                code.AppendLine("movzx eax, al");
+                break;
+            case "<=":
+                code.AppendLine("cmp eax, ebx");
+                code.AppendLine("setle al");
+                code.AppendLine("movzx eax, al");
+                break;
             case ">":
-                code.AppendLine("cmp ebx, eax");
+                code.AppendLine("cmp eax, ebx");
                 code.AppendLine("setg al");
                 code.AppendLine("movzx eax, al");
                 break;
-                //todo أضف باقي العمليات حسب الحاجة
+            case ">=":
+                code.AppendLine("cmp eax, ebx");
+                code.AppendLine("setge al");
+                code.AppendLine("movzx eax, al");
+                break;
+            case "&&":
+                code.AppendLine("and eax, ebx");
+                code.AppendLine("cmp eax, 0");
+                code.AppendLine("setne al");
+                code.AppendLine("movzx eax, al");
+                break;
+            case "||":
+                code.AppendLine("or eax, ebx");
+                code.AppendLine("cmp eax, 0");
+                code.AppendLine("setne al");
+                code.AppendLine("movzx eax, al");
+                break;
+            default:
+                // إذا كانت العملية غير معروفة
+                code.AppendLine("; unknown operation: " + op);
+                break;
         }
 
         return "eax";
@@ -307,7 +354,7 @@ public class CodeGenerator : SimpleBaseVisitor<string>
     public override string VisitGlobal(SimpleParser.GlobalContext context)
     {
         string type = context.type().GetText();
-        foreach (var variable in context.variables().variable())
+        foreach (SimpleParser.VariableContext? variable in context.variables().variable())
         {
             string varName = variable.IDENTIFIER().GetText();
 
@@ -328,5 +375,43 @@ public class CodeGenerator : SimpleBaseVisitor<string>
             }
         }
         return "";
+    }
+
+    private string GenerateIncrementDecrement(SimpleParser.ExpressionContext context)
+    {
+        bool isIncrement = context.INCREMENT() != null;
+        bool isPrefix = context.GetChild(0) is ITerminalNode;
+
+        string varName = null;
+        if (context.expression(0) != null && context.expression(0).IDENTIFIER() != null)
+        {
+            varName = context.expression(0).IDENTIFIER().GetText();
+        }
+
+        if (varName != null)
+        {
+            if (isPrefix)
+            {
+                // البادئة: ++x أو --x
+                if (isIncrement)
+                    code.AppendLine($"inc {varName}");
+                else
+                    code.AppendLine($"dec {varName}");
+                
+                code.AppendLine($"mov eax, {varName}");
+            }
+            else
+            {
+                // اللاحقة: x++ أو x--
+                code.AppendLine($"mov eax, {varName}");
+                
+                if (isIncrement)
+                    code.AppendLine($"inc {varName}");
+                else
+                    code.AppendLine($"dec {varName}");
+            }
+        }
+
+        return "eax";
     }
 }

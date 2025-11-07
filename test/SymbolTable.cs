@@ -72,7 +72,7 @@ public class SymbolTable
     public void PrintCurrentScope()
     {
         Console.WriteLine($"=== symbole in scope '{CurrentScope}' ===");
-        foreach (var symbol in scopes.Peek().Values)
+        foreach (Symbol symbol in scopes.Peek().Values)
         {
             Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");
         }
@@ -83,11 +83,11 @@ public class SymbolTable
     {
         Console.WriteLine("=== all scopes and symbols ===");
         int scopeIndex = 0;
-        foreach (var scope in scopes)
+        foreach (Dictionary<string, Symbol> scope in scopes)
         {
             string scopeName = scopeNames.ElementAt(scopeIndex);
             Console.WriteLine($"scope: {scopeName}");
-            foreach (var symbol in scope.Values)
+            foreach (Symbol symbol in scope.Values)
             {
                 Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");
             }

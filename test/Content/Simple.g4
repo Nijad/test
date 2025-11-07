@@ -44,6 +44,7 @@ GE: '>=';
 AND: '&&';
 OR: '||';
 INCREMENT: '++';
+DECREMENT: '--';
 
 // Identifiers and literals
 IDENTIFIER: [a-zA-Z][a-zA-Z0-9_]*;
@@ -75,7 +76,8 @@ argument: type IDENTIFIER;
 
 struct:
 	STRUCT IDENTIFIER (COLON IDENTIFIER)? LBRACE struct_members RBRACE;
-struct_members: (STATIC? type variable SEMI)*;
+struct_members: (struct_member)*;
+struct_member: STATIC? type variable SEMI;
 
 global: type variables SEMI;
 variables: variable (COMMA variable)*;
@@ -97,7 +99,10 @@ expression:
 	| IDENTIFIER ASSIGN expression
 	| LPAREN expression RPAREN
 	| (PLUS | MINUS) expression
-	| expression INCREMENT;
+	| expression INCREMENT
+	| expression DECREMENT
+	| INCREMENT expression
+	| DECREMENT expression;
 
 expr_list: expression (COMMA expression)*;
 
