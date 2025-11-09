@@ -95,5 +95,11 @@
             }
             Console.WriteLine("===========================");
         }
+
+        public Symbol LookupGlobal(string name)
+        {
+            Dictionary<string, Symbol> globalScope = scopes.Last(); // النطاق العالمي هو الأول في المكدس
+            return globalScope.ContainsKey(name) ? globalScope[name] : null;
+        }
     }
 }

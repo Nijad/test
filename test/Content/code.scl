@@ -1,9 +1,12 @@
-﻿program Test {
-    
-    int main() {
-        for(int i = 0; i<3; i++ ){
-            
-        }
+﻿program StructTest1 {
+    struct Point {
+        int x;
+        int y;
     }
     
+    int main() {
+        Point p;
+        p.x = 10;
+        return p.x;
+    }
 }

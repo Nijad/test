@@ -10,13 +10,13 @@ namespace test
         private SymbolTable symbolTable;
         private List<string> semanticErrors;
         private string currentFunctionReturnType;
-        private HashSet<Antlr4.Runtime.ParserRuleContext> visitedNodes;
+        private HashSet<ParserRuleContext> visitedNodes;
 
         public SimpleVisitor(SymbolTable symbolTable, List<string> semanticErrors)
         {
             this.symbolTable = symbolTable;
             this.semanticErrors = semanticErrors;
-            visitedNodes = new HashSet<Antlr4.Runtime.ParserRuleContext>();
+            visitedNodes = new HashSet<ParserRuleContext>();
         }
 
         public override object VisitProgram([NotNull] SimpleParser.ProgramContext context)
@@ -26,12 +26,151 @@ namespace test
             string programName = context.IDENTIFIER().GetText();
             AddSemanticInfo($"start program: {programName}");
 
+            //foreach (SimpleParser.MemberContext? member in context.member())
+            //    Visit(member);
+
+            // المرحلة 1: جمع جميع التعريفات أولاً (الدوال، المتغيرات العالمية، الهياكل)
             foreach (SimpleParser.MemberContext? member in context.member())
-                Visit(member);
+                CollectDeclarations(member);
+
+            // المرحلة 2: التحقق من الأجسام والتعبيرات
+            foreach (SimpleParser.MemberContext? member in context.member())
+                VisitMemberBody(member);
 
             symbolTable.ExitScope();
             return null;
         }
+
+        // جمع التعريفات دون زيارة الأجسام
+        private void CollectDeclarations(SimpleParser.MemberContext context)
+        {
+            if (context.function() != null)
+                CollectFunctionDeclaration(context.function());
+            else if (context.@struct() != null)
+                CollectStructDeclaration(context.@struct());
+            else if (context.global() != null)
+                Visit(context.global()); // 
+        }
+
+        // جمع تعريف الدالة دون زيارة الجسم
+        private void CollectFunctionDeclaration(SimpleParser.FunctionContext context)
+        {
+            string returnType = context.type()?.GetText() ?? "void";
+            string functionName = context.IDENTIFIER().GetText();
+
+            Symbol functionSymbol = new Symbol(
+                functionName,
+                "function",
+                returnType,
+                context.Start.Line,
+                context.Start.Column,
+                symbolTable.CurrentScope
+            );
+
+            if (!symbolTable.AddSymbol(functionSymbol))
+                AddSemanticError($"function '{functionName}' is already defined", context);
+
+            // جمع الباراميترات أيضاً
+            if (context.arguments() != null)
+                foreach (var arg in context.arguments().argument())
+                {
+                    string argName = arg.IDENTIFIER().GetText();
+                    string type = arg.type().GetText();
+
+                    Symbol argSymbol = new Symbol(
+                        argName,
+                        "parameter",
+                        type,
+                        arg.Start.Line,
+                        arg.Start.Column,
+                        $"{functionName}_scope"
+                    );
+                }
+        }
+
+        // جمع تعريف الهيكل دون زيارة الأعضاء
+        private void CollectStructDeclaration(SimpleParser.StructContext context)
+        {
+            string structName = context.IDENTIFIER(0).GetText();
+
+            // التحقق من وجود الهيكل الأب إذا كان موجوداً
+            if (context.IDENTIFIER(1) != null)
+            {
+                string parentName = context.IDENTIFIER(1).GetText();
+                SimpleParser.ProgramContext programContext = GetProgramContext(context);
+
+                if (!IsStructDefined(parentName, programContext))
+                    AddSemanticError($"struct parent '{parentName}' is not defined", context);
+            }
+
+            Symbol structSymbol = new Symbol(
+                structName,
+                "struct",
+                structName,
+                context.Start.Line,
+                context.Start.Column,
+                symbolTable.CurrentScope
+            );
+
+            if (!symbolTable.AddSymbol(structSymbol))
+                AddSemanticError($"struct '{structName}' is already defined", context);
+        }
+
+        private bool IsStructDefined(string structName, SimpleParser.ProgramContext program)
+        {
+            return FindStructInProgram(program, structName) != null;
+        }
+
+        // زيارة أجسام الأعضاء بعد جمع جميع التعريفات
+        private void VisitMemberBody(SimpleParser.MemberContext context)
+        {
+            if (context.function() != null)
+                VisitFunctionBody(context.function());
+            else if (context.@struct() != null)
+                Visit(context.@struct());
+        }
+
+        // زيارة جسم الدالة بعد جمع جميع التعريفات
+        private void VisitFunctionBody(SimpleParser.FunctionContext context)
+        {
+            string functionName = context.IDENTIFIER().GetText();
+            string returnType = context.type()?.GetText() ?? "void";
+
+            currentFunctionReturnType = returnType;
+            symbolTable.EnterScope(functionName);
+
+            // إضافة الباراميترات إلى نطاق الدالة
+            if (context.arguments() != null)
+            {
+                foreach (var arg in context.arguments().argument())
+                {
+                    string argName = arg.IDENTIFIER().GetText();
+                    string type = arg.type().GetText();
+
+                    Symbol argSymbol = new Symbol(
+                        argName,
+                        "parameter",
+                        type,
+                        arg.Start.Line,
+                        arg.Start.Column,
+                        symbolTable.CurrentScope
+                    );
+
+                    if (!symbolTable.AddSymbol(argSymbol))
+                        AddSemanticError($"Identifier '{argName}' is already defined", arg);
+                }
+            }
+
+            // زيارة جمل الدالة
+            foreach (var stmt in context.statement())
+            {
+                Visit(stmt);
+            }
+
+            symbolTable.ExitScope();
+            currentFunctionReturnType = null;
+        }
+
 
         public override object VisitFunction([NotNull] SimpleParser.FunctionContext context)
         {
@@ -113,7 +252,7 @@ namespace test
                 if (variable.expression() != null)
                 {
                     string exprType = GetExpressionType(variable.expression());
-                    if (exprType != null && !AreTypesCompatible(type, exprType))
+                    if (exprType != null && !AreTypesCompatible(type, exprType, context))
                         AddSemanticError($"type mismatch: cannot assign {exprType} to {type}", variable);
                 }
             }
@@ -145,8 +284,9 @@ namespace test
                 if (context.expression() != null)
                 {
                     string exprType = GetExpressionType(context.expression());
-                    if (exprType != null && !AreTypesCompatible(varType, exprType))
+                    if (exprType != null && !AreTypesCompatible(varType, exprType, context))
                         AddSemanticError($"type mismatch: cannot assign {exprType} to {varType}", context);
+
                     return exprType;
                 }
             }
@@ -156,15 +296,122 @@ namespace test
 
         public override object VisitExpression([NotNull] SimpleParser.ExpressionContext context)
         {
+            // هذا استدعاء دالة
+            if (context.IDENTIFIER() != null && context.LPAREN() != null)
+            {
+                string functionName = context.IDENTIFIER().GetText();
+                Symbol functionSymbol = symbolTable.Lookup(functionName);
+
+                if (functionSymbol == null)
+                {
+                    AddSemanticError($"function '{functionName}' is not defined", context);
+                    return null;
+                }
+
+                if (functionSymbol.Type != "function")
+                {
+                    AddSemanticError($"'{functionName}' is not a function name", context);
+                    return null;
+                }
+
+                // الحصول على قائمة الباراميترات الفعلية من الاستدعاء
+                List<SimpleParser.ExpressionContext> actualArgs = new List<SimpleParser.ExpressionContext>();
+                if (context.expr_list() != null)
+                    actualArgs = context.expr_list().expression().ToList();
+
+                // الحصول على الباراميترات الرسمية للدالة
+                List<Symbol> formalParams = GetFunctionParameters(functionName, context);
+
+                // التحقق من عدد الباراميترات
+                if (actualArgs.Count != formalParams.Count)
+                {
+                    AddSemanticError($"parameters count is not compatible with call function '{functionName}'. expected: {formalParams.Count}, current: {actualArgs.Count}", context);
+                    return functionSymbol.DataType; // نعود بنوع الدالة رغم الخطأ
+                }
+
+                // التحقق من أنواع الباراميترات
+                for (int i = 0; i < actualArgs.Count; i++)
+                {
+                    string actualArgType = GetExpressionType(actualArgs[i]);
+                    string formalParamType = formalParams[i].DataType;
+
+                    if (actualArgType != null && !AreTypesCompatible(formalParamType, actualArgType, context))
+                        AddSemanticError($"parameter type {i + 1} in call function '{functionName}' is not compatible expected: {formalParamType}, current: {actualArgType}", actualArgs[i]);
+
+                    // زيارة التعبير الفعلي للتحقق من الأخطاء الداخلية
+                    Visit(actualArgs[i]);
+                }
+
+                return functionSymbol.DataType; // نوع الإرجاع
+            }
+
+            // معالجة الوصول إلى أعضاء الهياكل (قراءة)
+            if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null && context.ASSIGN() == null)
+            {
+                // زيارة التعبير الأساسي (الهيكل)
+                Visit(context.expression(0));
+
+                string structType = GetExpressionType(context.expression(0));
+                string memberName = context.IDENTIFIER().GetText();
+
+                if (structType.StartsWith("struct_"))
+                {
+                    string structName = structType.Substring("struct_".Length);
+                    SimpleParser.StructContext structDef = FindStructDefinition(structName, context);
+                    if (structDef != null)
+                    {
+                        string memberType = GetStructMemberType(structDef, memberName);
+                        if (memberType == null)
+                            AddSemanticError($"العضو '{memberName}' غير موجود في الهيكل '{structName}'", context);
+                    }
+                }
+
+                return GetExpressionType(context);
+            }
+
+            // معالجة التعيين لأعضاء الهياكل (كتابة)
+            if (context.DOT() != null && context.expression().Length == 2 && context.IDENTIFIER() != null && context.ASSIGN() != null)
+            {
+                // النموذج: expression . IDENTIFIER = expression
+                string structType = GetExpressionType(context.expression(0));
+                string memberName = context.IDENTIFIER().GetText();
+
+                // زيارة التعبير الأساسي (الهيكل)
+                Visit(context.expression(0));
+
+                // تحديد نوع العضو
+                string memberType = null;
+                if (structType.StartsWith("struct_"))
+                {
+                    string structName = structType.Substring("struct_".Length);
+                    var structDef = FindStructDefinition(structName, context);
+                    if (structDef != null)
+                        memberType = GetStructMemberType(structDef, memberName);
+                }
+
+                // زيارة التعبير الأيمن والتحقق من التوافق
+                string rightType = GetExpressionType(context.expression(1));
+                Visit(context.expression(1));
+
+                if (memberType != null && rightType != null && !AreTypesCompatible(memberType, rightType, context))
+                    AddSemanticError($"member type '{memberName}' is not compatible. expected: {memberType}, current: {rightType}", context);
+
+                return memberType ?? "unknown";
+            }
+
             if (context.INTEGER() != null)
                 return "int";
-            else if (context.REAL() != null)
+
+            if (context.REAL() != null)
                 return "double";
-            else if (context.TRUE() != null || context.FALSE() != null)
+
+            if (context.TRUE() != null || context.FALSE() != null)
                 return "bool";
-            else if (context.NULL() != null)
+
+            if (context.NULL() != null)
                 return "null";
-            else if (context.IDENTIFIER() != null && context.expression().Length == 0)
+
+            if (context.IDENTIFIER() != null && context.expression().Length == 0)
             {
                 // معالجة المعرفات البسيطة
                 string varName = context.IDENTIFIER().GetText();
@@ -175,12 +422,13 @@ namespace test
 
                 AddSemanticError($"Identifier '{varName}' is not declared", context);
                 return null;
-
             }
-            else if (context.expression().Length == 1 && context.ASSIGN() == null)
+
+            if (context.expression().Length == 1 && context.ASSIGN() == null)
                 // تعبيرات أحادية
                 return Visit(context.expression(0));
-            else if (context.expression().Length == 2 && context.binaryOp() != null)
+
+            if (context.expression().Length == 2 && context.binaryOp() != null)
             {
                 // تعبيرات ثنائية
                 string leftType = GetExpressionType(context.expression(0));
@@ -188,20 +436,88 @@ namespace test
 
                 if (leftType != null && rightType != null)
                     return GetBinaryOperationResultType(leftType, rightType, context.binaryOp().GetText());
+
+                return null;
             }
-            else if (context.ASSIGN() != null && context.expression().Length == 2)
+
+            if (context.ASSIGN() != null && context.expression().Length == 2)
             {
                 // تعيين
                 string leftType = GetExpressionType(context.expression(0));
                 string rightType = GetExpressionType(context.expression(1));
 
-                if (leftType != null && rightType != null && !AreTypesCompatible(leftType, rightType))
+                if (leftType != null && rightType != null && !AreTypesCompatible(leftType, rightType, context))
                     AddSemanticError($"type mismatch: {leftType} and {rightType}", context);
 
                 return leftType;
             }
-            else if (context.INCREMENT() != null || context.DECREMENT() != null)
+
+            if (context.INCREMENT() != null || context.DECREMENT() != null)
                 return VisitIncrementDecrementExpression(context);
+
+            return null;
+        }
+
+        private List<Symbol> GetFunctionParameters(string functionName, SimpleParser.ExpressionContext context)
+        {
+            var parameters = new List<Symbol>();
+
+            // البحث عن تعريف الدالة في الشجرة
+            SimpleParser.FunctionContext functionDefinition = FindFunctionDefinition(functionName, context);
+
+            if (functionDefinition != null && functionDefinition.arguments() != null)
+                foreach (var arg in functionDefinition.arguments().argument())
+                {
+                    string paramName = arg.IDENTIFIER().GetText();
+                    string paramType = arg.type().GetText();
+
+                    parameters.Add(new Symbol(
+                        paramName,
+                        "parameter",
+                        paramType,
+                        arg.Start.Line,
+                        arg.Start.Column,
+                        $"{functionName}_params"
+                    ));
+                }
+
+            return parameters;
+        }
+
+        private SimpleParser.FunctionContext FindFunctionDefinition(string functionName, SimpleParser.ExpressionContext currentContext)
+        {
+            // البحث في الشجرة عن تعريف الدالة
+            SimpleParser.ProgramContext program = GetProgramContext(currentContext);
+
+            if (program != null)
+                foreach (SimpleParser.MemberContext? member in program.member())
+                    if (member.function() != null)
+                    {
+                        SimpleParser.FunctionContext func = member.function();
+                        if (func.IDENTIFIER().GetText() == functionName)
+                            return func;
+                    }
+
+            return null;
+        }
+
+        private SimpleParser.ProgramContext GetProgramContext(Antlr4.Runtime.ParserRuleContext context)
+        {
+            if (context == null) return null;
+
+            // إذا كان السياق الحالي هو البرنامج نفسه
+            if (context is SimpleParser.ProgramContext programContext)
+                return programContext;
+
+            // البحث التصاعدي في الشجرة
+            RuleContext parent = context.Parent;
+            while (parent != null)
+            {
+                if (parent is SimpleParser.ProgramContext parentProgram)
+                    return parentProgram;
+                parent = parent.Parent;
+            }
+
             return null;
         }
 
@@ -209,22 +525,22 @@ namespace test
         {
             if (context.IF() != null)
                 return VisitIfStatement(context);
-            else if (context.WHILE() != null)
+            if (context.WHILE() != null)
                 return VisitWhileStatement(context);
-            else if (context.FOR() != null)
+            if (context.FOR() != null)
                 return VisitForStatement(context);
-            else if (context.RETURN() != null)
+            if (context.RETURN() != null)
                 return VisitReturnStatement(context);
-            else if (context.expression() != null && context.expression().Length > 0)
+            if (context.expression() != null && context.expression().Length > 0)
                 return Visit(context.expression(0));
-            else if (context.type() != null && context.variables() != null)
+            if (context.type() != null && context.variables() != null)
             {
                 // تعريف متغير محلي
                 Visit(context.type());
                 Visit(context.variables());
                 return null;
             }
-            else if (context.LBRACE() != null)
+            if (context.LBRACE() != null)
             {
                 // كتلة من الجمل - ندخل نطاق جديد للكتلة
                 symbolTable.EnterScope($"block_{context.Start.Line}");
@@ -241,15 +557,23 @@ namespace test
         {
             if (context.expression() != null && context.expression().Length > 0)
             {
+                // زيارة التعبير أولاً (للاكتشاف المبكر للأخطاء)
+                Visit(context.expression(0));
+
+                // تحديد نوع الإرجاع
                 string returnType = GetExpressionType(context.expression(0));
 
-                if (returnType == null)
-                    AddSemanticError("Can not detect expression type in return statement", context);
-                else if (currentFunctionReturnType != "void" && !AreTypesCompatible(currentFunctionReturnType, returnType))
-                    AddSemanticError($"return type {returnType} is not match with function type{currentFunctionReturnType}", context);
+                // التحقق من التوافق مع نوع الدالة
+                if (currentFunctionReturnType != "void")
+                    if (returnType == "unknown")
+                        AddSemanticError("The expression type could not be determined in the return statement.", context);
+                    else if (!AreTypesCompatible(currentFunctionReturnType, returnType, context))
+                        AddSemanticError($"Return type {returnType} is not compatible with function type {currentFunctionReturnType}", context);
             }
             else if (currentFunctionReturnType != "void")
-                AddSemanticError("Funciton must return value", context);
+            {
+                AddSemanticError("Function must return value", context);
+            }
 
             return null;
         }
@@ -277,16 +601,208 @@ namespace test
 
         private string GetExpressionType(SimpleParser.ExpressionContext context)
         {
-            object result = Visit(context);
-            return result as string;
+            if (context == null) return "unknown";
+
+            if (context.INTEGER() != null) return "int";
+            if (context.REAL() != null) return "double";
+            if (context.TRUE() != null || context.FALSE() != null) return "bool";
+            if (context.NULL() != null) return "null";
+
+            if (context.IDENTIFIER() != null)
+            {
+                string varName = context.IDENTIFIER().GetText();
+                var symbol = symbolTable.Lookup(varName);
+
+                if (symbol != null)
+                {
+                    return symbol.DataType;
+                }
+                else
+                {
+                    // إذا لم يكن متغيراً، قد يكون اسم هيكل
+                    var structDef = FindStructDefinition(varName, context);
+                    if (structDef != null)
+                    {
+                        return $"struct_{varName}";
+                    }
+                }
+                return "unknown";
+            }
+
+            // معالجة الوصول إلى أعضاء الهياكل: expression '.' IDENTIFIER
+            if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null)
+            {
+                string structType = GetExpressionType(context.expression(0));
+                string memberName = context.IDENTIFIER().GetText();
+
+                // إذا كان النوع الأساسي هو هيكل، ابحث عن العضو داخل الهيكل
+                if (structType.StartsWith("struct_"))
+                {
+                    string structName = structType.Substring("struct_".Length);
+                    SimpleParser.StructContext structDef = FindStructDefinition(structName, context);
+                    if (structDef != null)
+                    {
+                        string memberType = GetStructMemberType(structDef, memberName);
+                        if (memberType != null)
+                            return memberType;
+                        else
+                            AddSemanticError($"العضو '{memberName}' غير موجود في الهيكل '{structName}'", context);
+                    }
+                }
+                else
+                    AddSemanticError($"النوع '{structType}' ليس هيكلاً، لا يمكن الوصول إلى الأعضاء", context);
+                return "unknown";
+            }
+
+            // معالجة التعيين لأعضاء الهياكل: expression '.' IDENTIFIER '=' expression
+            if (context.DOT() != null && context.expression().Length == 2 && context.IDENTIFIER() != null && context.ASSIGN() != null)
+            {
+                // النوع هو نوع العضو المطلوب تعيينه
+                string structType = GetExpressionType(context.expression(0));
+                string memberName = context.IDENTIFIER().GetText();
+
+                if (structType.StartsWith("struct_"))
+                {
+                    string structName = structType.Substring("struct_".Length);
+                    SimpleParser.StructContext structDef = FindStructDefinition(structName, context);
+                    if (structDef != null)
+                        return GetStructMemberType(structDef, memberName) ?? "unknown";
+                }
+                return "unknown";
+            }
+
+            // تعبيرات أحادية
+            if (context.expression().Length == 1 && context.ASSIGN() == null)
+                return GetExpressionType(context.expression(0));
+
+            // عمليات ثنائية
+            if (context.binaryOp() != null && context.expression().Length == 2)
+            {
+                string leftType = GetExpressionType(context.expression(0));
+                string rightType = GetExpressionType(context.expression(1));
+                string op = context.binaryOp().GetText();
+
+                return GetBinaryOperationResultType(leftType, rightType, op);
+            }
+
+            // تعيين - النوع هو نوع المتغير الأيسر
+            if (context.ASSIGN() != null && context.expression().Length == 2)
+                return GetExpressionType(context.expression(0));
+
+            return "unknown";
         }
 
-        private bool AreTypesCompatible(string type1, string type2)
+        private string GetStructMemberType(SimpleParser.StructContext structContext, string memberName)
         {
-            if (type1 == type2) return true;
-            if (type1 == "null" && (type2.StartsWith("struct") || type2 == "class")) return true;
-            if ((type1 == "int" && type2 == "double") || (type1 == "double" && type2 == "int")) return true;
+            if (structContext?.struct_members() == null) return null;
+
+            // البحث في أعضاء الهيكل الحالي
+            foreach (var child in structContext.struct_members().children)
+                if (child is SimpleParser.Struct_memberContext memberContext)
+                    if (memberContext.variable()?.IDENTIFIER()?.GetText() == memberName)
+                        return memberContext.type().GetText();
+
+            // إذا كان هناك هيكل أب، ابحث في الأعضاء الموروثة
+            if (structContext.IDENTIFIER(1) != null)
+            {
+                string parentName = structContext.IDENTIFIER(1).GetText();
+                SimpleParser.StructContext parentStruct = FindStructDefinition(parentName, structContext);
+                if (parentStruct != null)
+                    return GetStructMemberType(parentStruct, memberName);
+            }
+
+            return null;
+        }
+
+        private bool AreTypesCompatible(string targetType, string sourceType, ParserRuleContext context)
+        {
+            if (targetType == sourceType) return true;
+
+            // إذا كان أي من الأنواع غير معروف، نعتبره متوافقاً مؤقتاً لتجنب أخطاء متعددة
+            if (targetType == "unknown" || sourceType == "unknown") return true;
+
+            // التحويلات الآمنة
+            if (targetType == "double" && sourceType == "int") return true;
+            if (targetType == "int" && sourceType == "bool") return true;
+
+            // التحويلات مع فقدان الدقة (قد نريد إعطاء تحذير بدلاً من خطأ)
+            if (targetType == "int" && sourceType == "double")
+            {
+                AddSemanticError($"تحذير: فقدان الدقة عند تحويل {sourceType} إلى {targetType}", context);
+                return true;
+            }
+
+            // الأنواع المركبة (الهياكل)
+            if (targetType == "null" && sourceType.StartsWith("struct_")) return true;
+            if (targetType.StartsWith("struct_") && sourceType == "null") return true;
+
+            // الوراثة بين الهياكل
+            if (targetType.StartsWith("struct_") && sourceType.StartsWith("struct_"))
+                if (IsStructCompatible(targetType, sourceType, context))
+                    return true;
+
             return false;
+        }
+
+        private bool IsStructCompatible(string targetStruct, string sourceStruct, Antlr4.Runtime.ParserRuleContext context)
+        {
+            // تنظيف أسماء الهياكل (إزالة أي بادئات)
+            targetStruct = CleanStructName(targetStruct);
+            sourceStruct = CleanStructName(sourceStruct);
+
+            // إذا كانا نفس النوع
+            if (targetStruct == sourceStruct)
+                return true;
+
+            // البحث عن الهيكل المصدر في الشجرة
+            SimpleParser.StructContext sourceStructDef = FindStructDefinition(sourceStruct, context);
+            if (sourceStructDef != null && sourceStructDef.IDENTIFIER(1) != null)
+            {
+                string parentName = sourceStructDef.IDENTIFIER(1).GetText();
+                parentName = CleanStructName(parentName);
+
+                // التحقق من الوراثة المباشرة أو غير المباشرة
+                if (parentName == targetStruct || IsStructCompatible(targetStruct, parentName, context))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private string CleanStructName(string structName)
+        {
+            // إزالة البادئة "struct_" إذا كانت موجودة
+            if (structName.StartsWith("struct_"))
+                return structName.Substring("struct_".Length);
+
+            return structName;
+        }
+
+        private SimpleParser.StructContext FindStructDefinition(string structName, ParserRuleContext context)
+        {
+            // البحث في الشجرة عن تعريف الهيكل
+            var programContext = GetProgramContext(context);
+
+            if (programContext != null)
+                return FindStructInProgram(programContext, structName);
+
+            return null;
+        }
+
+        private SimpleParser.StructContext FindStructInProgram(SimpleParser.ProgramContext program, string structName)
+        {
+            foreach (SimpleParser.MemberContext? member in program.member())
+            {
+                if (member.@struct() != null)
+                {
+                    SimpleParser.StructContext structContext = member.@struct();
+                    string currentStructName = structContext.IDENTIFIER(0).GetText();
+
+                    if (currentStructName == structName)
+                        return structContext;
+                }
+            }
+            return null;
         }
 
         private string GetBinaryOperationResultType(string leftType, string rightType, string op)
