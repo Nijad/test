@@ -1,12 +1,25 @@
-﻿program StructTest1 {
-    struct Point {
-        int x;
-        int y;
+﻿program ErrorTest {
+    int x = 10;
+    
+    // خطأ: تعريف مسبق
+    int x = 20;
+    
+    int test() {
+        // خطأ: متغير غير معرّف
+        y = 5;
+        
+        // خطأ: أنواع غير متوافقة
+        bool b = 10;
+        int z = true;
+        
+        return 0;
     }
     
-    int main() {
-        Point p;
-        p.x = 10;
-        return p.x;
+    // خطأ: الدالة لا ترجع قيمة في جميع المسارات
+    int problematic(int a) {
+        if (a > 0) {
+            return a;
+        }
+        // لا يوجد return عندما a <= 0
     }
 }

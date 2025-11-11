@@ -21,6 +21,8 @@ namespace test
 
         public override object VisitProgram([NotNull] SimpleParser.ProgramContext context)
         {
+            Console.WriteLine("=== تصحيح: جميع الرموز في الجدول ===");
+            symbolTable.PrintAllSymbols();
             symbolTable.EnterScope("global");
 
             string programName = context.IDENTIFIER().GetText();
@@ -97,13 +99,21 @@ namespace test
             if (context.IDENTIFIER(1) != null)
             {
                 string parentName = context.IDENTIFIER(1).GetText();
-                SimpleParser.ProgramContext programContext = GetProgramContext(context);
+                var programContext = GetProgramContext(context);
 
                 if (!IsStructDefined(parentName, programContext))
-                    AddSemanticError($"struct parent '{parentName}' is not defined", context);
+                {
+                    AddSemanticError($"الهيكل الأب '{parentName}' غير معرّف", context);
+                }
+                else
+                {
+#if DEBUG
+                    Console.WriteLine($"[DEBUG] الهيكل '{structName}' يرث من '{parentName}'");
+#endif
+                }
             }
 
-            Symbol structSymbol = new Symbol(
+            var structSymbol = new Symbol(
                 structName,
                 "struct",
                 structName,
@@ -113,7 +123,90 @@ namespace test
             );
 
             if (!symbolTable.AddSymbol(structSymbol))
-                AddSemanticError($"struct '{structName}' is already defined", context);
+            {
+                AddSemanticError($"الهيكل '{structName}' معرّف مسبقاً", context);
+            }
+        }
+
+        private List<string> GetAllStructMembers(SimpleParser.StructContext structContext)
+        {
+            var members = new List<string>();
+
+            if (structContext?.struct_members() != null)
+            {
+                foreach (var child in structContext.struct_members().children)
+                {
+                    if (child is SimpleParser.Struct_memberContext memberContext)
+                    {
+                        var variable = memberContext.variable();
+                        if (variable?.IDENTIFIER() != null)
+                        {
+                            members.Add(variable.IDENTIFIER().GetText());
+                        }
+                    }
+                }
+            }
+
+            // إضافة الأعضاء الموروثة
+            if (structContext?.IDENTIFIER(1) != null)
+            {
+                string parentName = structContext.IDENTIFIER(1).GetText();
+                var parentStruct = FindStructDefinition(parentName, structContext);
+                if (parentStruct != null)
+                {
+                    members.AddRange(GetAllStructMembers(parentStruct));
+                }
+            }
+
+            return members;
+        }
+
+        private void DebugStructAccess(SimpleParser.ExpressionContext context)
+        {
+#if DEBUG
+            Console.WriteLine($"=== تصحيح الوصول إلى الهياكل ===");
+            Console.WriteLine($"التعبير: {context.GetText()}");
+
+            if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null)
+            {
+                var baseExpr = context.expression(0);
+                string baseType = GetExpressionType(baseExpr);
+                string memberName = context.IDENTIFIER().GetText();
+
+                Console.WriteLine($"النوع الأساسي: {baseType}");
+                Console.WriteLine($"اسم العضو: {memberName}");
+                Console.WriteLine($"هل النوع الأساسي هيكل؟: {IsStructType(baseType)}");
+
+                if (IsStructType(baseType))
+                {
+                    string structName = GetStructNameFromType(baseType);
+                    Console.WriteLine($"اسم الهيكل: {structName}");
+
+                    var structDef = FindStructDefinition(structName, context);
+                    Console.WriteLine($"تعريف الهيكل: {(structDef != null ? "موجود" : "غير موجود")}");
+
+                    if (structDef != null)
+                    {
+                        string memberType = GetStructMemberType(structDef, memberName);
+                        Console.WriteLine($"نوع العضو: {memberType ?? "غير موجود"}");
+
+                        if (memberType == null)
+                        {
+                            memberType = FindMemberInParentStructs(structDef, memberName, context);
+                            Console.WriteLine($"نوع العضو بعد البحث في الأب: {memberType ?? "غير موجود"}");
+                        }
+                    }
+                }
+
+                if (baseExpr.DOT() != null)
+                {
+                    Console.WriteLine($"التعبير الأساسي نفسه يحتوي على نقطة: {baseExpr.GetText()}");
+                    string baseBaseType = GetExpressionType(baseExpr.expression(0));
+                    Console.WriteLine($"النوع الأساسي الأساسي: {baseBaseType}");
+                }
+            }
+            Console.WriteLine($"===================");
+#endif
         }
 
         private bool IsStructDefined(string structName, SimpleParser.ProgramContext program)
@@ -268,6 +361,8 @@ namespace test
 
             if (varType != null)
             {
+                // تطبيع نوع الهيكل
+                varType = NormalizeStructType(varType, context);
                 Symbol varSymbol = new Symbol(
                     varName,
                     "local",
@@ -284,6 +379,7 @@ namespace test
                 if (context.expression() != null)
                 {
                     string exprType = GetExpressionType(context.expression());
+                    exprType = NormalizeStructType(exprType, context);
                     if (exprType != null && !AreTypesCompatible(varType, exprType, context))
                         AddSemanticError($"type mismatch: cannot assign {exprType} to {varType}", context);
 
@@ -296,107 +392,114 @@ namespace test
 
         public override object VisitExpression([NotNull] SimpleParser.ExpressionContext context)
         {
-            // هذا استدعاء دالة
-            if (context.IDENTIFIER() != null && context.LPAREN() != null)
-            {
-                string functionName = context.IDENTIFIER().GetText();
-                Symbol functionSymbol = symbolTable.Lookup(functionName);
+            // تفعيل التصحيح للتعيينات
+            DebugAssignment(context);
 
-                if (functionSymbol == null)
-                {
-                    AddSemanticError($"function '{functionName}' is not defined", context);
-                    return null;
-                }
-
-                if (functionSymbol.Type != "function")
-                {
-                    AddSemanticError($"'{functionName}' is not a function name", context);
-                    return null;
-                }
-
-                // الحصول على قائمة الباراميترات الفعلية من الاستدعاء
-                List<SimpleParser.ExpressionContext> actualArgs = new List<SimpleParser.ExpressionContext>();
-                if (context.expr_list() != null)
-                    actualArgs = context.expr_list().expression().ToList();
-
-                // الحصول على الباراميترات الرسمية للدالة
-                List<Symbol> formalParams = GetFunctionParameters(functionName, context);
-
-                // التحقق من عدد الباراميترات
-                if (actualArgs.Count != formalParams.Count)
-                {
-                    AddSemanticError($"parameters count is not compatible with call function '{functionName}'. expected: {formalParams.Count}, current: {actualArgs.Count}", context);
-                    return functionSymbol.DataType; // نعود بنوع الدالة رغم الخطأ
-                }
-
-                // التحقق من أنواع الباراميترات
-                for (int i = 0; i < actualArgs.Count; i++)
-                {
-                    string actualArgType = GetExpressionType(actualArgs[i]);
-                    string formalParamType = formalParams[i].DataType;
-
-                    if (actualArgType != null && !AreTypesCompatible(formalParamType, actualArgType, context))
-                        AddSemanticError($"parameter type {i + 1} in call function '{functionName}' is not compatible expected: {formalParamType}, current: {actualArgType}", actualArgs[i]);
-
-                    // زيارة التعبير الفعلي للتحقق من الأخطاء الداخلية
-                    Visit(actualArgs[i]);
-                }
-
-                return functionSymbol.DataType; // نوع الإرجاع
-            }
-
-            // معالجة الوصول إلى أعضاء الهياكل (قراءة)
-            if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null && context.ASSIGN() == null)
-            {
-                // زيارة التعبير الأساسي (الهيكل)
-                Visit(context.expression(0));
-
-                string structType = GetExpressionType(context.expression(0));
-                string memberName = context.IDENTIFIER().GetText();
-
-                if (structType.StartsWith("struct_"))
-                {
-                    string structName = structType.Substring("struct_".Length);
-                    SimpleParser.StructContext structDef = FindStructDefinition(structName, context);
-                    if (structDef != null)
-                    {
-                        string memberType = GetStructMemberType(structDef, memberName);
-                        if (memberType == null)
-                            AddSemanticError($"العضو '{memberName}' غير موجود في الهيكل '{structName}'", context);
-                    }
-                }
-
-                return GetExpressionType(context);
-            }
-
-            // معالجة التعيين لأعضاء الهياكل (كتابة)
+            // التعيين لأعضاء الهياكل (كتابة) - مثل circle.id = 1
             if (context.DOT() != null && context.expression().Length == 2 && context.IDENTIFIER() != null && context.ASSIGN() != null)
             {
-                // النموذج: expression . IDENTIFIER = expression
-                string structType = GetExpressionType(context.expression(0));
-                string memberName = context.IDENTIFIER().GetText();
-
-                // زيارة التعبير الأساسي (الهيكل)
+                // زيارة التعبير الأساسي أولاً (مثل circle في circle.id = 1)
                 Visit(context.expression(0));
 
-                // تحديد نوع العضو
-                string memberType = null;
-                if (structType.StartsWith("struct_"))
+                string baseType = GetExpressionType(context.expression(0));
+                string memberName = context.IDENTIFIER().GetText();
+
+                if (!IsStructType(baseType))
                 {
-                    string structName = structType.Substring("struct_".Length);
-                    var structDef = FindStructDefinition(structName, context);
-                    if (structDef != null)
-                        memberType = GetStructMemberType(structDef, memberName);
+                    AddSemanticError($"لا يمكن الوصول إلى الأعضاء من النوع '{baseType}'", context);
+                    return "unknown";
+                }
+
+                string structName = GetStructNameFromType(baseType);
+                var structDef = FindStructDefinition(structName, context);
+
+                if (structDef == null)
+                {
+                    AddSemanticError($"الهيكل '{structName}' غير معرّف", context);
+                    return "unknown";
+                }
+
+                // الحصول على نوع العضو
+                string memberType = GetStructMemberType(structDef, memberName);
+                if (memberType == null)
+                {
+                    // البحث في الهياكل الأب
+                    memberType = FindMemberInParentStructs(structDef, memberName, context);
+                }
+
+                if (memberType == null)
+                {
+                    AddSemanticError($"العضو '{memberName}' غير موجود في الهيكل '{structName}'", context);
+                    return "unknown";
                 }
 
                 // زيارة التعبير الأيمن والتحقق من التوافق
                 string rightType = GetExpressionType(context.expression(1));
                 Visit(context.expression(1));
 
-                if (memberType != null && rightType != null && !AreTypesCompatible(memberType, rightType, context))
-                    AddSemanticError($"member type '{memberName}' is not compatible. expected: {memberType}, current: {rightType}", context);
+                if (!AreTypesCompatible(memberType, rightType, context))
+                {
+                    AddSemanticError($"نوع العضو '{memberName}' غير متوافق. المتوقع: {memberType}, المقدم: {rightType}", context);
+                }
 
-                return memberType ?? "unknown";
+                return memberType;
+            }
+
+            // التعيين العادي - مثل area = calculateArea(circle)
+            if (context.ASSIGN() != null && context.expression().Length == 2)
+            {
+                string leftType = GetExpressionType(context.expression(0));
+                string rightType = GetExpressionType(context.expression(1));
+
+                // زيارة الطرفين
+                Visit(context.expression(0));
+                Visit(context.expression(1));
+
+                if (!AreTypesCompatible(leftType, rightType, context))
+                {
+                    AddSemanticError($"عدم توافق الأنواع في التعيين. المتوقع: {leftType}, المقدم: {rightType}", context);
+                }
+
+                return leftType;
+            }
+            // معالجة الوصول إلى أعضاء الهياكل (قراءة)
+            if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null && context.ASSIGN() == null)
+            {
+                // زيارة التعبير الأساسي أولاً
+                Visit(context.expression(0));
+
+                string baseType = GetExpressionType(context.expression(0));
+                string memberName = context.IDENTIFIER().GetText();
+
+                if (!IsStructType(baseType))
+                {
+                    AddSemanticError($"لا يمكن الوصول إلى الأعضاء من النوع '{baseType}'", context);
+                    return "unknown";
+                }
+
+                string structName = GetStructNameFromType(baseType);
+                var structDef = FindStructDefinition(structName, context);
+
+                if (structDef == null)
+                {
+                    AddSemanticError($"الهيكل '{structName}' غير معرّف", context);
+                    return "unknown";
+                }
+
+                string memberType = GetStructMemberType(structDef, memberName);
+                if (memberType == null)
+                {
+                    // البحث في الهياكل الأب
+                    memberType = FindMemberInParentStructs(structDef, memberName, context);
+                }
+
+                if (memberType == null)
+                {
+                    AddSemanticError($"العضو '{memberName}' غير موجود في الهيكل '{structName}'", context);
+                    return "unknown";
+                }
+
+                return memberType;
             }
 
             if (context.INTEGER() != null)
@@ -455,21 +558,122 @@ namespace test
             if (context.INCREMENT() != null || context.DECREMENT() != null)
                 return VisitIncrementDecrementExpression(context);
 
-            return null;
+            //return null;
+            return base.VisitExpression(context);
+        }
+
+        private void DebugAssignment(SimpleParser.ExpressionContext context)
+        {
+#if DEBUG
+            if (context.ASSIGN() != null && context.expression().Length == 2)
+            {
+                Console.WriteLine($"[DEBUG] === تحليل التعيين ===");
+                Console.WriteLine($"[DEBUG] التعبير الكامل: {context.GetText()}");
+
+                string leftType = GetExpressionType(context.expression(0));
+                string rightType = GetExpressionType(context.expression(1));
+
+                Console.WriteLine($"[DEBUG] الطرف الأيسر: {context.expression(0).GetText()} -> {leftType}");
+                Console.WriteLine($"[DEBUG] الطرف الأيمن: {context.expression(1).GetText()} -> {rightType}");
+                Console.WriteLine($"[DEBUG] متوافق: {AreTypesCompatible(leftType, rightType, context)}");
+
+                // إذا كان الطرف الأيسر وصولاً إلى عضو هيكل
+                if (context.expression(0).DOT() != null)
+                {
+                    var leftExpr = context.expression(0);
+                    string baseType = GetExpressionType(leftExpr.expression(0));
+                    string memberName = leftExpr.IDENTIFIER().GetText();
+
+                    Console.WriteLine($"[DEBUG]   الوصول إلى العضو: {memberName}");
+                    Console.WriteLine($"[DEBUG]   النوع الأساسي: {baseType}");
+                    Console.WriteLine($"[DEBUG]   هل النوع الأساسي هيكل؟: {IsStructType(baseType)}");
+
+                    if (IsStructType(baseType))
+                    {
+                        string structName = GetStructNameFromType(baseType);
+                        var structDef = FindStructDefinition(structName, context);
+                        Console.WriteLine($"[DEBUG]   تعريف الهيكل: {(structDef != null ? "موجود" : "غير موجود")}");
+
+                        if (structDef != null)
+                        {
+                            string memberType = GetStructMemberType(structDef, memberName);
+                            Console.WriteLine($"[DEBUG]   نوع العضو: {memberType ?? "غير موجود"}");
+                        }
+                    }
+                }
+                Console.WriteLine($"[DEBUG] === انتهى تحليل التعيين ===");
+            }
+#endif
+        }
+
+        private void DebugStructInheritance(SimpleParser.StructContext structContext, string memberName)
+        {
+#if DEBUG
+            Console.WriteLine($"[DEBUG] البحث عن العضو '{memberName}' في الهيكل '{structContext.IDENTIFIER(0)?.GetText()}'");
+
+            // البحث في الأعضاء المباشرين
+            if (structContext.struct_members() != null)
+            {
+                foreach (var child in structContext.struct_members().children)
+                {
+                    if (child is SimpleParser.Struct_memberContext memberContext)
+                    {
+                        var variable = memberContext.variable();
+                        if (variable?.IDENTIFIER()?.GetText() == memberName)
+                        {
+                            Console.WriteLine($"[DEBUG]   وجد العضو '{memberName}' في الهيكل الحالي");
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // البحث في الهيكل الأب
+            if (structContext.IDENTIFIER(1) != null)
+            {
+                string parentName = structContext.IDENTIFIER(1).GetText();
+                Console.WriteLine($"[DEBUG]   البحث في الهيكل الأب: '{parentName}'");
+            }
+            else
+            {
+                Console.WriteLine($"[DEBUG]   لا يوجد هيكل أب");
+            }
+#endif
+        }
+
+        private void DebugTypeCompatibility(string targetType, string sourceType, bool isCompatible, ParserRuleContext context)
+        {
+#if DEBUG
+            string normalizedTarget = NormalizeStructType(targetType, context);
+            string normalizedSource = NormalizeStructType(sourceType, context);
+
+            Console.WriteLine($"[DEBUG] توافق الأنواع: '{targetType}' -> '{sourceType}'");
+            Console.WriteLine($"[DEBUG]   مطبّع: '{normalizedTarget}' -> '{normalizedSource}'");
+            Console.WriteLine($"[DEBUG]   متوافق: {isCompatible}");
+
+            if (normalizedTarget != "int" && normalizedTarget != "double" && normalizedTarget != "bool" &&
+                normalizedSource != "int" && normalizedSource != "double" && normalizedSource != "bool")
+            {
+                Console.WriteLine($"[DEBUG]   وراثة: {IsSourceInheritsFromTarget(normalizedSource, normalizedTarget, context)}");
+            }
+#endif
         }
 
         private List<Symbol> GetFunctionParameters(string functionName, SimpleParser.ExpressionContext context)
         {
             var parameters = new List<Symbol>();
 
-            // البحث عن تعريف الدالة في الشجرة
-            SimpleParser.FunctionContext functionDefinition = FindFunctionDefinition(functionName, context);
+            var functionDefinition = FindFunctionDefinition(functionName, context);
 
             if (functionDefinition != null && functionDefinition.arguments() != null)
+            {
                 foreach (var arg in functionDefinition.arguments().argument())
                 {
                     string paramName = arg.IDENTIFIER().GetText();
                     string paramType = arg.type().GetText();
+
+                    // استخدام النوع الطبيعي بدون بادئة
+                    paramType = NormalizeStructType(paramType, context);
 
                     parameters.Add(new Symbol(
                         paramName,
@@ -480,6 +684,7 @@ namespace test
                         $"{functionName}_params"
                     ));
                 }
+            }
 
             return parameters;
         }
@@ -557,22 +762,28 @@ namespace test
         {
             if (context.expression() != null && context.expression().Length > 0)
             {
-                // زيارة التعبير أولاً (للاكتشاف المبكر للأخطاء)
-                Visit(context.expression(0));
+                var expression = context.expression(0);
 
-                // تحديد نوع الإرجاع
-                string returnType = GetExpressionType(context.expression(0));
+                // تفعيل نظام التصحيح للهياكل
+                DebugStructAccess(expression);
 
-                // التحقق من التوافق مع نوع الدالة
-                if (currentFunctionReturnType != "void")
-                    if (returnType == "unknown")
-                        AddSemanticError("The expression type could not be determined in the return statement.", context);
-                    else if (!AreTypesCompatible(currentFunctionReturnType, returnType, context))
-                        AddSemanticError($"Return type {returnType} is not compatible with function type {currentFunctionReturnType}", context);
+                // زيارة التعبير أولاً
+                Visit(expression);
+
+                string returnType = GetExpressionType(expression);
+
+                if (returnType == "unknown")
+                {
+                    AddSemanticError("تعذر تحديد نوع التعبير في جملة الإرجاع", context);
+                }
+                else if (currentFunctionReturnType != "void" && !AreTypesCompatible(currentFunctionReturnType, returnType, context))
+                {
+                    AddSemanticError($"نوع الإرجاع {returnType} لا يتوافق مع نوع الدالة {currentFunctionReturnType}", context);
+                }
             }
             else if (currentFunctionReturnType != "void")
             {
-                AddSemanticError("Function must return value", context);
+                AddSemanticError("الدالة يجب أن ترجع قيمة", context);
             }
 
             return null;
@@ -593,6 +804,9 @@ namespace test
                     else if (grandParent is SimpleParser.StatementContext statement)
                         // متغير محلي داخل دالة
                         return statement.type().GetText();
+                    else if (grandParent is SimpleParser.Struct_memberContext structMember)
+                        // عضو في هيكل
+                        return structMember.type().GetText();
                 }
                 parent = parent.Parent;
             }
@@ -603,12 +817,14 @@ namespace test
         {
             if (context == null) return "unknown";
 
+            // الأنواع الأساسية
             if (context.INTEGER() != null) return "int";
             if (context.REAL() != null) return "double";
             if (context.TRUE() != null || context.FALSE() != null) return "bool";
             if (context.NULL() != null) return "null";
 
-            if (context.IDENTIFIER() != null)
+            // المعرفات (متغيرات)
+            if (context.IDENTIFIER() != null && context.expression().Length == 0 && context.LPAREN() == null)
             {
                 string varName = context.IDENTIFIER().GetText();
                 var symbol = symbolTable.Lookup(varName);
@@ -617,65 +833,77 @@ namespace test
                 {
                     return symbol.DataType;
                 }
-                else
-                {
-                    // إذا لم يكن متغيراً، قد يكون اسم هيكل
-                    var structDef = FindStructDefinition(varName, context);
-                    if (structDef != null)
-                    {
-                        return $"struct_{varName}";
-                    }
-                }
                 return "unknown";
             }
 
-            // معالجة الوصول إلى أعضاء الهياكل: expression '.' IDENTIFIER
-            if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null)
+            // الوصول إلى أعضاء الهياكل: expression '.' IDENTIFIER
+            if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null && context.ASSIGN() == null)
             {
-                string structType = GetExpressionType(context.expression(0));
+                string baseType = GetExpressionType(context.expression(0));
                 string memberName = context.IDENTIFIER().GetText();
 
-                // إذا كان النوع الأساسي هو هيكل، ابحث عن العضو داخل الهيكل
-                if (structType.StartsWith("struct_"))
+                // استخدام IsStructType للتحقق بدلاً من StartsWith
+                if (IsStructType(baseType))
                 {
-                    string structName = structType.Substring("struct_".Length);
-                    SimpleParser.StructContext structDef = FindStructDefinition(structName, context);
+                    string structName = GetStructNameFromType(baseType);
+                    var structDef = FindStructDefinition(structName, context);
+
                     if (structDef != null)
                     {
                         string memberType = GetStructMemberType(structDef, memberName);
                         if (memberType != null)
+                        {
                             return memberType;
-                        else
-                            AddSemanticError($"العضو '{memberName}' غير موجود في الهيكل '{structName}'", context);
+                        }
+
+                        // البحث في الهياكل الأب
+                        memberType = FindMemberInParentStructs(structDef, memberName, context);
+                        if (memberType != null)
+                        {
+                            return memberType;
+                        }
                     }
                 }
-                else
-                    AddSemanticError($"النوع '{structType}' ليس هيكلاً، لا يمكن الوصول إلى الأعضاء", context);
+                else if (baseType != "unknown")
+                {
+                    AddSemanticError($"لا يمكن الوصول إلى الأعضاء من النوع '{baseType}'", context);
+                }
+
                 return "unknown";
             }
 
-            // معالجة التعيين لأعضاء الهياكل: expression '.' IDENTIFIER '=' expression
+            // التعيين لأعضاء الهياكل: expression '.' IDENTIFIER '=' expression
             if (context.DOT() != null && context.expression().Length == 2 && context.IDENTIFIER() != null && context.ASSIGN() != null)
             {
-                // النوع هو نوع العضو المطلوب تعيينه
-                string structType = GetExpressionType(context.expression(0));
+                string baseType = GetExpressionType(context.expression(0));
                 string memberName = context.IDENTIFIER().GetText();
 
-                if (structType.StartsWith("struct_"))
+                if (IsStructType(baseType))
                 {
-                    string structName = structType.Substring("struct_".Length);
-                    SimpleParser.StructContext structDef = FindStructDefinition(structName, context);
+                    string structName = GetStructNameFromType(baseType);
+                    var structDef = FindStructDefinition(structName, context);
+
                     if (structDef != null)
-                        return GetStructMemberType(structDef, memberName) ?? "unknown";
+                    {
+                        string memberType = GetStructMemberType(structDef, memberName);
+                        if (memberType != null)
+                        {
+                            return memberType;
+                        }
+                    }
                 }
                 return "unknown";
             }
 
-            // تعبيرات أحادية
-            if (context.expression().Length == 1 && context.ASSIGN() == null)
-                return GetExpressionType(context.expression(0));
+            // استدعاء الدوال
+            if (context.IDENTIFIER() != null && context.LPAREN() != null)
+            {
+                string functionName = context.IDENTIFIER().GetText();
+                var functionSymbol = symbolTable.Lookup(functionName);
+                return functionSymbol?.DataType ?? "unknown";
+            }
 
-            // عمليات ثنائية
+            // التعبيرات الثنائية
             if (context.binaryOp() != null && context.expression().Length == 2)
             {
                 string leftType = GetExpressionType(context.expression(0));
@@ -685,97 +913,264 @@ namespace test
                 return GetBinaryOperationResultType(leftType, rightType, op);
             }
 
-            // تعيين - النوع هو نوع المتغير الأيسر
+            // التعيين
             if (context.ASSIGN() != null && context.expression().Length == 2)
+            {
+                // في التعيين، النوع هو نوع الطرف الأيسر
                 return GetExpressionType(context.expression(0));
+            }
+
+            // التعبيرات الأحادية
+            if (context.expression().Length == 1 && context.ASSIGN() == null)
+            {
+                return GetExpressionType(context.expression(0));
+            }
 
             return "unknown";
         }
 
-        private string GetStructMemberType(SimpleParser.StructContext structContext, string memberName)
+        private bool IsStructType(string typeName)
         {
-            if (structContext?.struct_members() == null) return null;
+            if (string.IsNullOrEmpty(typeName)) return false;
 
-            // البحث في أعضاء الهيكل الحالي
-            foreach (var child in structContext.struct_members().children)
-                if (child is SimpleParser.Struct_memberContext memberContext)
-                    if (memberContext.variable()?.IDENTIFIER()?.GetText() == memberName)
-                        return memberContext.type().GetText();
+            // إذا كان النوع معروفاً كهيكل في جدول الرموز
+            var symbol = symbolTable.Lookup(typeName);
+            if (symbol != null && symbol.Type == "struct")
+            {
+                return true;
+            }
 
-            // إذا كان هناك هيكل أب، ابحث في الأعضاء الموروثة
+            // أو إذا كان النوع يحتوي على بادئة struct_
+            if (typeName.StartsWith("struct_"))
+            {
+                return true;
+            }
+
+            // أو إذا كان اسم هيكل معرّف
+            var programContext = GetProgramContext(null); // نحتاج سياقاً للبحث
+            if (programContext != null)
+            {
+                var structDef = FindStructInProgram(programContext, typeName);
+                if (structDef != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private string GetStructNameFromType(string typeName)
+        {
+            if (typeName.StartsWith("struct_"))
+            {
+                return typeName.Substring("struct_".Length);
+            }
+            return typeName;
+        }
+
+        private string NormalizeStructType(string typeName, Antlr4.Runtime.ParserRuleContext context)
+        {
+            if (typeName == null) return "unknown";
+
+            // إذا كان النوع يحتوي على بادئة struct_، أزل البادئة للبحث
+            if (typeName.StartsWith("struct_"))
+            {
+                string cleanName = typeName.Substring("struct_".Length);
+                // تحقق إذا كان الاسم النظيف يتوافق مع هيكل معرّف
+                var structDef = FindStructDefinition(cleanName, context);
+                if (structDef != null)
+                {
+                    return cleanName; // إرجاع الاسم بدون بادئة للتوحيد
+                }
+            }
+
+            // إذا كان النوع بدون بادئة، تحقق إذا كان هيكلاً
+            if (typeName != "int" && typeName != "double" && typeName != "bool" &&
+                typeName != "void" && typeName != "unknown" && typeName != "null")
+            {
+                var structDef = FindStructDefinition(typeName, context);
+                if (structDef != null)
+                {
+                    return typeName; // إرجاع الاسم بدون بادئة
+                }
+            }
+
+            return typeName;
+        }
+
+        private string FindMemberInParentStructs(SimpleParser.StructContext structContext, string memberName, ParserRuleContext context)
+        {
+            if (structContext == null)
+                return null;
+
+            // إذا كان هناك هيكل أب، ابحث في أعضائه
             if (structContext.IDENTIFIER(1) != null)
             {
                 string parentName = structContext.IDENTIFIER(1).GetText();
-                SimpleParser.StructContext parentStruct = FindStructDefinition(parentName, structContext);
+                var parentStruct = FindStructDefinition(parentName, context);
                 if (parentStruct != null)
-                    return GetStructMemberType(parentStruct, memberName);
+                {
+                    string memberType = GetStructMemberType(parentStruct, memberName);
+                    if (memberType != null)
+                    {
+                        return memberType;
+                    }
+                    // إذا لم يتم العثور، ابحث في أسلاف الهيكل الأب
+                    return FindMemberInParentStructs(parentStruct, memberName, context);
+                }
             }
 
             return null;
         }
 
-        private bool AreTypesCompatible(string targetType, string sourceType, ParserRuleContext context)
+        private string GetStructMemberType(SimpleParser.StructContext structContext, string memberName)
         {
-            if (targetType == sourceType) return true;
+            DebugStructInheritance(structContext, memberName);
 
-            // إذا كان أي من الأنواع غير معروف، نعتبره متوافقاً مؤقتاً لتجنب أخطاء متعددة
-            if (targetType == "unknown" || sourceType == "unknown") return true;
+            if (structContext?.struct_members() == null)
+                return null;
+
+            // البحث في الأعضاء المباشرين للهيكل
+            foreach (var child in structContext.struct_members().children)
+            {
+                if (child is SimpleParser.Struct_memberContext memberContext)
+                {
+                    var variable = memberContext.variable();
+                    if (variable?.IDENTIFIER()?.GetText() == memberName)
+                    {
+                        return memberContext.type().GetText();
+                    }
+                }
+            }
+
+            // إذا لم يتم العثور على العضو في الهيكل الحالي، ابحث في الهيكل الأب
+            if (structContext.IDENTIFIER(1) != null)
+            {
+                string parentName = structContext.IDENTIFIER(1).GetText();
+                var parentStruct = FindStructDefinition(parentName, structContext);
+                if (parentStruct != null)
+                {
+#if DEBUG
+                    Console.WriteLine($"[DEBUG]   البحث في الهيكل الأب '{parentName}' للعضو '{memberName}'");
+#endif
+                    return GetStructMemberType(parentStruct, memberName);
+                }
+            }
+
+            return null;
+        }
+
+        private void DebugExpressionType(SimpleParser.ExpressionContext context, string message = "")
+        {
+#if DEBUG
+            string type = GetExpressionType(context);
+            Console.WriteLine($"[DEBUG] التعبير: {context.GetText()}, النوع: {type}, {message}");
+
+            if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null)
+            {
+                string baseType = GetExpressionType(context.expression(0));
+                string memberName = context.IDENTIFIER().GetText();
+                Console.WriteLine($"[DEBUG]   النوع الأساسي: {baseType}, العضو: {memberName}");
+
+                if (baseType.StartsWith("struct_"))
+                {
+                    string structName = baseType.Substring("struct_".Length);
+                    var structDef = FindStructDefinition(structName, context);
+                    Console.WriteLine($"[DEBUG]   تعريف الهيكل: {(structDef != null ? "موجود" : "غير موجود")}");
+
+                    if (structDef != null)
+                    {
+                        string memberType = GetStructMemberType(structDef, memberName);
+                        Console.WriteLine($"[DEBUG]   نوع العضو: {memberType ?? "غير موجود"}");
+                    }
+                }
+            }
+#endif
+        }
+
+        private bool AreTypesCompatible(string targetType, string sourceType, Antlr4.Runtime.ParserRuleContext context)
+        {
+            if (targetType == "unknown" || sourceType == "unknown")
+                return true;
+
+            // إذا كانا نفس النوع
+            if (targetType == sourceType)
+                return true;
 
             // التحويلات الآمنة
-            if (targetType == "double" && sourceType == "int") return true;
-            if (targetType == "int" && sourceType == "bool") return true;
+            if (targetType == "double" && sourceType == "int")
+                return true;
+            if (targetType == "int" && sourceType == "bool")
+                return true;
 
-            // التحويلات مع فقدان الدقة (قد نريد إعطاء تحذير بدلاً من خطأ)
+            // التحويلات مع فقدان الدقة (تحذير)
             if (targetType == "int" && sourceType == "double")
             {
                 AddSemanticError($"تحذير: فقدان الدقة عند تحويل {sourceType} إلى {targetType}", context);
                 return true;
             }
 
-            // الأنواع المركبة (الهياكل)
-            if (targetType == "null" && sourceType.StartsWith("struct_")) return true;
-            if (targetType.StartsWith("struct_") && sourceType == "null") return true;
-
-            // الوراثة بين الهياكل
-            if (targetType.StartsWith("struct_") && sourceType.StartsWith("struct_"))
-                if (IsStructCompatible(targetType, sourceType, context))
-                    return true;
-
-            return false;
-        }
-
-        private bool IsStructCompatible(string targetStruct, string sourceStruct, Antlr4.Runtime.ParserRuleContext context)
-        {
-            // تنظيف أسماء الهياكل (إزالة أي بادئات)
-            targetStruct = CleanStructName(targetStruct);
-            sourceStruct = CleanStructName(sourceStruct);
-
-            // إذا كانا نفس النوع
-            if (targetStruct == sourceStruct)
+            // null مقبول للهياكل
+            if (IsStructType(targetType) && sourceType == "null")
                 return true;
 
-            // البحث عن الهيكل المصدر في الشجرة
-            SimpleParser.StructContext sourceStructDef = FindStructDefinition(sourceStruct, context);
-            if (sourceStructDef != null && sourceStructDef.IDENTIFIER(1) != null)
-            {
-                string parentName = sourceStructDef.IDENTIFIER(1).GetText();
-                parentName = CleanStructName(parentName);
+            if (IsStructType(sourceType) && targetType == "null")
+                return true;
 
-                // التحقق من الوراثة المباشرة أو غير المباشرة
-                if (parentName == targetStruct || IsStructCompatible(targetStruct, parentName, context))
+            // الوراثة بين الهياكل
+            if (IsStructType(targetType) && IsStructType(sourceType))
+            {
+                string targetStruct = GetStructNameFromType(targetType);
+                string sourceStruct = GetStructNameFromType(sourceType);
+
+                if (IsSourceInheritsFromTarget(sourceStruct, targetStruct, context))
                     return true;
             }
 
             return false;
         }
 
-        private string CleanStructName(string structName)
+        private void CollectVariableDeclaration(string varName, string varType, SimpleParser.VariableContext context)
         {
-            // إزالة البادئة "struct_" إذا كانت موجودة
-            if (structName.StartsWith("struct_"))
-                return structName.Substring("struct_".Length);
+            // تطبيع نوع الهيكل إذا لزم الأمر
+            if (IsStructType(varType))
+            {
+                varType = GetStructNameFromType(varType);
+            }
 
-            return structName;
+            var varSymbol = new Symbol(
+                varName,
+                "local",
+                varType,
+                context.Start.Line,
+                context.Start.Column,
+                symbolTable.CurrentScope
+            );
+
+            if (!symbolTable.AddSymbol(varSymbol))
+            {
+                AddSemanticError($"المتغير '{varName}' معرّف مسبقاً", context);
+            }
+        }
+
+        private bool IsSourceInheritsFromTarget(string sourceStruct, string targetStruct, ParserRuleContext context)
+        {
+            var sourceDef = FindStructDefinition(sourceStruct, context);
+            if (sourceDef == null) return false;
+
+            // التحقق من الوراثة المباشرة
+            if (sourceDef.IDENTIFIER(1) != null)
+            {
+                string parentName = sourceDef.IDENTIFIER(1).GetText();
+                if (parentName == targetStruct)
+                    return true;
+
+                // التحقق من الوراثة غير المباشرة (متعددة المستويات)
+                return IsSourceInheritsFromTarget(parentName, targetStruct, context);
+            }
+
+            return false;
         }
 
         private SimpleParser.StructContext FindStructDefinition(string structName, ParserRuleContext context)

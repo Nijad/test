@@ -101,5 +101,27 @@
             Dictionary<string, Symbol> globalScope = scopes.Last(); // النطاق العالمي هو الأول في المكدس
             return globalScope.ContainsKey(name) ? globalScope[name] : null;
         }
+
+        public void PrintAllSymbols()
+        {
+            Console.WriteLine("الرموز في جدول الرموز:");
+            foreach (var scope in scopes)
+            {
+                foreach (var symbol in scope.Values)
+                {
+                    Console.WriteLine($"  {symbol.Name} -> {symbol.DataType} ({symbol.Type}) في نطاق {symbol.Scope}");
+                }
+            }
+        }
+
+        public List<Symbol> GetAllSymbols()
+        {
+            var allSymbols = new List<Symbol>();
+            foreach (var scope in scopes)
+            {
+                allSymbols.AddRange(scope.Values);
+            }
+            return allSymbols;
+        }
     }
 }
