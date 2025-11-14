@@ -109,7 +109,7 @@
         public List<Symbol> GetAllSymbols()
         {
             List<Symbol> allSymbols = new List<Symbol>();
-            foreach (var scope in scopes)
+            foreach (Dictionary<string, Symbol> scope in scopes)
                 allSymbols.AddRange(scope.Values);
 
             return allSymbols;

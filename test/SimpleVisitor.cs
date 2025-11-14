@@ -80,7 +80,7 @@ namespace test
 
             // جمع الباراميترات أيضاً
             if (context.arguments() != null)
-                foreach (var arg in context.arguments().argument())
+                foreach (SimpleParser.ArgumentContext? arg in context.arguments().argument())
                 {
                     string argName = arg.IDENTIFIER().GetText();
                     string type = arg.type().GetText();
@@ -105,7 +105,7 @@ namespace test
             if (context.IDENTIFIER(1) != null)
             {
                 string parentName = context.IDENTIFIER(1).GetText();
-                var programContext = GetProgramContext(context);
+                SimpleParser.ProgramContext programContext = GetProgramContext(context);
 
                 if (!IsStructDefined(parentName, programContext))
                     AddSemanticError($"Struct parent '{parentName}' is not declared", context);
@@ -128,13 +128,13 @@ namespace test
 
         private List<string> GetAllStructMembers(SimpleParser.StructContext structContext)
         {
-            var members = new List<string>();
+            List<string> members = new List<string>();
 
             if (structContext?.struct_members() != null)
-                foreach (var child in structContext.struct_members().children)
+                foreach (IParseTree? child in structContext.struct_members().children)
                     if (child is SimpleParser.Struct_memberContext memberContext)
                     {
-                        var variable = memberContext.variable();
+                        SimpleParser.VariableContext variable = memberContext.variable();
                         if (variable?.IDENTIFIER() != null)
                             members.Add(variable.IDENTIFIER().GetText());
                     }
@@ -143,7 +143,7 @@ namespace test
             if (structContext?.IDENTIFIER(1) != null)
             {
                 string parentName = structContext.IDENTIFIER(1).GetText();
-                var parentStruct = FindStructDefinition(parentName, structContext);
+                SimpleParser.StructContext parentStruct = FindStructDefinition(parentName, structContext);
                 if (parentStruct != null)
                     members.AddRange(GetAllStructMembers(parentStruct));
             }
@@ -158,7 +158,7 @@ namespace test
 
             if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null)
             {
-                var baseExpr = context.expression(0);
+                SimpleParser.ExpressionContext baseExpr = context.expression(0);
                 string baseType = GetExpressionType(baseExpr);
                 string memberName = context.IDENTIFIER().GetText();
 
@@ -171,7 +171,7 @@ namespace test
                     string structName = GetStructNameFromType(baseType);
                     Console.WriteLine($"Struct Name: {structName}");
 
-                    var structDef = FindStructDefinition(structName, context);
+                    SimpleParser.StructContext? structDef = FindStructDefinition(structName, context);
                     Console.WriteLine($"Struct Definition: {(structDef != null ? "Exists" : "Does not exist")}");
 
                     if (structDef != null)
@@ -222,7 +222,7 @@ namespace test
 
             // إضافة الباراميترات إلى نطاق الدالة
             if (context.arguments() != null)
-                foreach (var arg in context.arguments().argument())
+                foreach (SimpleParser.ArgumentContext? arg in context.arguments().argument())
                 {
                     string argName = arg.IDENTIFIER().GetText();
                     string type = arg.type().GetText();
@@ -241,7 +241,7 @@ namespace test
                 }
 
             // زيارة جمل الدالة
-            foreach (var stmt in context.statement())
+            foreach (SimpleParser.StatementContext? stmt in context.statement())
                 Visit(stmt);
 
             // التحقق من إرجاع القيمة
@@ -316,7 +316,7 @@ namespace test
 
             // البحث في الكتلة
             if (context.LBRACE() != null)
-                foreach (var stmt in context.statement())
+                foreach (SimpleParser.StatementContext? stmt in context.statement())
                     if (HasReturnStatement(stmt))
                         return true;
 
@@ -424,7 +424,7 @@ namespace test
             // تفعيل التصحيح للتعيينات
             DebugAssignment(context);
             if (context.expr_list() != null)
-                foreach (var expr in context.expr_list().expression())
+                foreach (SimpleParser.ExpressionContext? expr in context.expr_list().expression())
                     Visit(expr);
 
             // استدعاء الدوال
@@ -490,7 +490,7 @@ namespace test
                 }
 
                 string structName = GetStructNameFromType(baseType);
-                var structDef = FindStructDefinition(structName, context);
+                SimpleParser.StructContext structDef = FindStructDefinition(structName, context);
 
                 if (structDef == null)
                 {
@@ -569,7 +569,7 @@ namespace test
                 }
 
                 string structName = GetStructNameFromType(baseType);
-                var structDef = FindStructDefinition(structName, context);
+                SimpleParser.StructContext structDef = FindStructDefinition(structName, context);
 
                 if (structDef == null)
                 {
@@ -671,7 +671,7 @@ namespace test
                 // إذا كان الطرف الأيسر وصولاً إلى عضو هيكل
                 if (context.expression(0).DOT() != null)
                 {
-                    var leftExpr = context.expression(0);
+                    SimpleParser.ExpressionContext leftExpr = context.expression(0);
                     string baseType = GetExpressionType(leftExpr.expression(0));
                     string memberName = leftExpr.IDENTIFIER().GetText();
 
@@ -682,7 +682,7 @@ namespace test
                     if (IsStructType(baseType))
                     {
                         string structName = GetStructNameFromType(baseType);
-                        var structDef = FindStructDefinition(structName, context);
+                        SimpleParser.StructContext? structDef = FindStructDefinition(structName, context);
                         Console.WriteLine($"Struct definition: {(structDef != null ? "Exists" : "Does not exist")}");
 
                         if (structDef != null)
@@ -702,10 +702,10 @@ namespace test
 
             // البحث في الأعضاء المباشرين
             if (structContext.struct_members() != null)
-                foreach (var child in structContext.struct_members().children)
+                foreach (IParseTree? child in structContext.struct_members().children)
                     if (child is SimpleParser.Struct_memberContext memberContext)
                     {
-                        var variable = memberContext.variable();
+                        SimpleParser.VariableContext variable = memberContext.variable();
                         if (variable?.IDENTIFIER()?.GetText() == memberName)
                         {
                             Console.WriteLine($"Found member '{memberName}' in current struct");
@@ -725,12 +725,12 @@ namespace test
 
         private List<Symbol> GetFunctionParameters(string functionName, SimpleParser.ExpressionContext context)
         {
-            var parameters = new List<Symbol>();
+            List<Symbol> parameters = new List<Symbol>();
 
-            var functionDefinition = FindFunctionDefinition(functionName, context);
+            SimpleParser.FunctionContext functionDefinition = FindFunctionDefinition(functionName, context);
 
             if (functionDefinition != null && functionDefinition.arguments() != null)
-                foreach (var arg in functionDefinition.arguments().argument())
+                foreach (SimpleParser.ArgumentContext? arg in functionDefinition.arguments().argument())
                 {
                     string paramName = arg.IDENTIFIER().GetText();
                     string paramType = arg.type().GetText();
@@ -838,7 +838,7 @@ namespace test
         {
             if (context.expression() != null && context.expression().Length > 0)
             {
-                var expression = context.expression(0);
+                SimpleParser.ExpressionContext expression = context.expression(0);
 
                 // تفعيل نظام التصحيح للهياكل
                 DebugStructAccess(expression);
@@ -1106,10 +1106,10 @@ namespace test
                 return null;
 
             // البحث في الأعضاء المباشرين للهيكل
-            foreach (var child in structContext.struct_members().children)
+            foreach (IParseTree? child in structContext.struct_members().children)
                 if (child is SimpleParser.Struct_memberContext memberContext)
                 {
-                    var variable = memberContext.variable();
+                    SimpleParser.VariableContext variable = memberContext.variable();
                     if (variable?.IDENTIFIER()?.GetText() == memberName)
                         return memberContext.type().GetText();
                 }
