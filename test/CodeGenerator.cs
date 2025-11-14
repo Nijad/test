@@ -24,14 +24,21 @@ namespace test
         // دوال مساعدة لتحديد الأنواع
         private string GetExpressionType(SimpleParser.ExpressionContext context)
         {
-            if (context.INTEGER() != null) return "int";
-            if (context.REAL() != null) return "double";
-            if (context.TRUE() != null || context.FALSE() != null) return "bool";
+            if (context.INTEGER() != null) 
+                return "int";
+            
+            if (context.REAL() != null) 
+                return "double";
+            
+            if (context.TRUE() != null || context.FALSE() != null) 
+                return "bool";
+            
             if (context.IDENTIFIER() != null)
             {
                 Symbol symbol = symbolTable.Lookup(context.IDENTIFIER().GetText());
                 return symbol?.DataType ?? "unknown";
             }
+
             return "unknown";
         }
 
@@ -118,20 +125,20 @@ namespace test
             // معالجة الباراميترات أولاً
             if (context.arguments() != null)
             {
-                code.AppendLine("; === معالجة الباراميترات ===");
+                code.AppendLine("; === Parameter processing ===");
                 SafeVisit(context.arguments());
             }
 
             // حجز المساحة الإجمالية للمتغيرات المحلية
             if (currentLocalOffset > 4)
-                code.AppendLine($"sub esp, {currentLocalOffset - 4} ; حجز مساحة للمتغيرات المحلية");
+                code.AppendLine($"sub esp, {currentLocalOffset - 4} ; Allocate space for local variables");
 
             // توليد كود الجمل داخل الدالة
             foreach (SimpleParser.StatementContext? stmt in context.statement())
                 SafeVisit(stmt);
 
             // نهاية الدالة
-            code.AppendLine("; === نهاية الدالة ===");
+            code.AppendLine("; === End of function ===");
             code.AppendLine("mov esp, ebp");
             code.AppendLine("pop ebp");
 
@@ -155,21 +162,27 @@ namespace test
             // تحقق من نوع الجملة وعالجها بشكل مناسب
             if (context.IF() != null)
                 return GenerateIfStatement(context);
-            else if (context.WHILE() != null)
+            
+            if (context.WHILE() != null)
                 return GenerateWhileStatement(context);
-            else if (context.FOR() != null)
+            
+            if (context.FOR() != null)
                 return GenerateForStatement(context);
-            else if (context.RETURN() != null)
+            
+            if (context.RETURN() != null)
                 return GenerateReturnStatement(context);
-            else if (context.expression() != null && context.expression().Length > 0)
+            
+            if (context.expression() != null && context.expression().Length > 0)
                 return GenerateExpressionStatement(context);
-            else if (context.LBRACE() != null)
+            
+            if (context.LBRACE() != null)
             {
                 foreach (SimpleParser.StatementContext? stmt in context.statement())
                     SafeVisit(stmt);
                 return "";
             }
-            else if (context.type() != null && context.variables() != null)
+            
+            if (context.type() != null && context.variables() != null)
             {
                 // تعريف متغيرات محلية
                 SafeVisit(context.variables());
@@ -183,6 +196,7 @@ namespace test
         {
             foreach (SimpleParser.ArgumentContext? arg in context.argument())
                 SafeVisit(arg);
+
             return "";
         }
 
@@ -198,8 +212,8 @@ namespace test
             int localOffset = AllocateLocalSpace(argName, type);
 
             // تسجيل موقع الباراميتر في جدول الرموز (إذا كان مدعوماً)
-            code.AppendLine($"; معالجة الباراميتر: {argName} ({type})");
-            code.AppendLine($"; الموقع: [ebp+{paramStackOffset}] -> [ebp-{localOffset}]");
+            code.AppendLine($"; Parameter processing: {argName} ({type})");
+            code.AppendLine($"; Location: [ebp+{paramStackOffset}] -> [ebp-{localOffset}]");
 
             // تحميل الباراميتر من المكدس إلى موقعه المحلي
             GenerateParameterLoad(argName, type, paramStackOffset, localOffset);
@@ -230,10 +244,14 @@ namespace test
         {
             switch (type)
             {
-                case "int": return 4;
-                case "double": return 8;
-                case "bool": return 1;
-                default: return 4; // الأنواع المعرفة من المستخدم
+                case "int": 
+                    return 4;
+                case "double": 
+                    return 8;
+                case "bool": 
+                    return 1;
+                default: 
+                    return 4; // الأنواع المعرفة من المستخدم
             }
         }
 
@@ -782,6 +800,7 @@ namespace test
         {
             foreach (SimpleParser.VariableContext? variable in context.variable())
                 SafeVisit(variable);
+
             return "";
         }
 
@@ -794,7 +813,7 @@ namespace test
             {
                 SafeVisit(context.expression());
                 // المتغيرات المحلية تحتاج إلى تخصيص مساحة في المكدس
-                code.AppendLine($"mov [ebp-4], eax"); // مثال بسيط - تحتاج لإدارة إطار المكدس
+                code.AppendLine($"mov [ebp-4], eax");
             }
 
             return "";

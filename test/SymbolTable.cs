@@ -73,9 +73,7 @@
         {
             Console.WriteLine($"=== symbole in scope '{CurrentScope}' ===");
             foreach (Symbol symbol in scopes.Peek().Values)
-            {
                 Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");
-            }
             Console.WriteLine("=======================");
         }
 
@@ -88,9 +86,7 @@
                 string scopeName = scopeNames.ElementAt(scopeIndex);
                 Console.WriteLine($"scope: {scopeName}");
                 foreach (Symbol symbol in scope.Values)
-                {
                     Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");
-                }
                 scopeIndex++;
             }
             Console.WriteLine("===========================");
@@ -104,23 +100,18 @@
 
         public void PrintAllSymbols()
         {
-            Console.WriteLine("الرموز في جدول الرموز:");
-            foreach (var scope in scopes)
-            {
-                foreach (var symbol in scope.Values)
-                {
-                    Console.WriteLine($"  {symbol.Name} -> {symbol.DataType} ({symbol.Type}) في نطاق {symbol.Scope}");
-                }
-            }
+            Console.WriteLine("Symbols in the symbol table:");
+            foreach (Dictionary<string, Symbol> scope in scopes)
+                foreach (Symbol symbol in scope.Values)
+                    Console.WriteLine($"{symbol.Name} -> {symbol.DataType} ({symbol.Type}) in scope {symbol.Scope}");
         }
 
         public List<Symbol> GetAllSymbols()
         {
-            var allSymbols = new List<Symbol>();
+            List<Symbol> allSymbols = new List<Symbol>();
             foreach (var scope in scopes)
-            {
                 allSymbols.AddRange(scope.Values);
-            }
+
             return allSymbols;
         }
     }

@@ -45,6 +45,7 @@ AND: '&&';
 OR: '||';
 INCREMENT: '++';
 DECREMENT: '--';
+NOT: '!';
 
 // Identifiers and literals
 IDENTIFIER: [a-zA-Z][a-zA-Z0-9_]*;
@@ -98,13 +99,15 @@ expression:
 	| IDENTIFIER
 	| IDENTIFIER ASSIGN expression
 	| LPAREN expression RPAREN
-	| (PLUS | MINUS) expression
+	| unaryOp expression
 	| expression INCREMENT
 	| expression DECREMENT
 	| INCREMENT expression
 	| DECREMENT expression;
 
 expr_list: expression (COMMA expression)*;
+
+unaryOp: NOT | PLUS | MINUS;
 
 binaryOp:
 	EQ

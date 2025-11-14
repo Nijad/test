@@ -36,9 +36,10 @@ namespace test
 
                 SymbolTable symbolTable = new SymbolTable();
                 List<string> semanticErrors = new List<string>();
+                List<string> semanticWarnings = new List<string>();
 
                 Console.WriteLine("building symbol table and semantic analysis...");
-                SimpleVisitor visitor = new SimpleVisitor(symbolTable, semanticErrors);
+                SimpleVisitor visitor = new SimpleVisitor(symbolTable, semanticErrors, semanticWarnings);
                 visitor.Visit(tree);
 
                 // طباعة جدول الرموز الكامل
@@ -52,7 +53,16 @@ namespace test
                     return;
                 }
 
-                Console.WriteLine("Semantic analysis was done successfuly!");
+                // طباعة التحذيرات إذا وجدت (بدون إيقاف البرنامج)
+                if (semanticWarnings.Count > 0)
+                {
+                    Console.WriteLine("Semantic Warnings:");
+                    foreach (string warning in semanticWarnings)
+                        Console.WriteLine(warning);
+                    Console.WriteLine("Semantic analysis was done with wornings!");
+                }
+                else
+                    Console.WriteLine("Semantic analysis was done successfuly!");
 
                 // بناء شجرة الـ AST
                 ASTBuilder astBuilder = new ASTBuilder(symbolTable);

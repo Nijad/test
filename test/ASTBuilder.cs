@@ -163,38 +163,30 @@ namespace test
         public override ASTNode VisitStatement(StatementContext context)
         {
             if (context.IF() != null)
-            {
                 return VisitIfStatement(context);
-            }
-            else if (context.WHILE() != null)
-            {
+
+            if (context.WHILE() != null)
                 return VisitWhileStatement(context);
-            }
-            else if (context.FOR() != null)
-            {
+
+            if (context.FOR() != null)
                 return VisitForStatement(context);
-            }
-            else if (context.RETURN() != null)
-            {
+
+            if (context.RETURN() != null)
                 return VisitReturnStatement(context);
-            }
-            else if (context.expression() != null && context.expression().Length > 0)
-            {
+
+            if (context.expression() != null && context.expression().Length > 0)
                 return new ExpressionStatementNode
                 {
                     Line = context.Start.Line,
                     Column = context.Start.Column,
                     Expression = Visit(context.expression(0)) as ExpressionNode
                 };
-            }
-            else if (context.LBRACE() != null)
-            {
+
+            if (context.LBRACE() != null)
                 return VisitBlockStatement(context);
-            }
-            else if (context.type() != null && context.variables() != null)
-            {
+
+            if (context.type() != null && context.variables() != null)
                 return VisitVariableDeclaration(context);
-            }
 
             return null;
         }
@@ -319,7 +311,6 @@ namespace test
         public override ASTNode VisitExpression(ExpressionContext context)
         {
             if (context.INTEGER() != null)
-            {
                 return new IntegerNode
                 {
                     Line = context.Start.Line,
@@ -327,9 +318,8 @@ namespace test
                     Value = int.Parse(context.INTEGER().GetText()),
                     Type = "int"
                 };
-            }
-            else if (context.REAL() != null)
-            {
+
+            if (context.REAL() != null)
                 return new RealNode
                 {
                     Line = context.Start.Line,
@@ -337,9 +327,8 @@ namespace test
                     Value = double.Parse(context.REAL().GetText()),
                     Type = "double"
                 };
-            }
-            else if (context.TRUE() != null)
-            {
+
+            if (context.TRUE() != null)
                 return new BooleanNode
                 {
                     Line = context.Start.Line,
@@ -347,9 +336,8 @@ namespace test
                     Value = true,
                     Type = "bool"
                 };
-            }
-            else if (context.FALSE() != null)
-            {
+
+            if (context.FALSE() != null)
                 return new BooleanNode
                 {
                     Line = context.Start.Line,
@@ -357,52 +345,45 @@ namespace test
                     Value = false,
                     Type = "bool"
                 };
-            }
-            else if (context.NULL() != null)
-            {
+
+            if (context.NULL() != null)
                 return new NullNode
                 {
                     Line = context.Start.Line,
                     Column = context.Start.Column,
                     Type = "null"
                 };
-            }
-            else if (context.IDENTIFIER() != null)
-            {
-                if (context.ASSIGN() != null && context.expression().Length == 2)
+
+            // Assignment expression
+            if (context.IDENTIFIER() != null && context.ASSIGN() != null && context.expression().Length == 2)
+                return new BinaryExpressionNode
                 {
-                    // Assignment expression
-                    return new BinaryExpressionNode
-                    {
-                        Line = context.Start.Line,
-                        Column = context.Start.Column,
-                        Left = new IdentifierNode
-                        {
-                            Line = context.Start.Line,
-                            Column = context.Start.Column,
-                            Name = context.IDENTIFIER().GetText(),
-                            Type = "identifier"
-                        },
-                        Operator = "=",
-                        Right = Visit(context.expression(1)) as ExpressionNode,
-                        Type = "assignment"
-                    };
-                }
-                else if (context.expression().Length == 0)
-                {
-                    // Simple identifier
-                    return new IdentifierNode
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Left = new IdentifierNode
                     {
                         Line = context.Start.Line,
                         Column = context.Start.Column,
                         Name = context.IDENTIFIER().GetText(),
                         Type = "identifier"
-                    };
-                }
-            }
-            else if (context.binaryOp() != null && context.expression().Length == 2)
-            {
-                // Binary operation
+                    },
+                    Operator = "=",
+                    Right = Visit(context.expression(1)) as ExpressionNode,
+                    Type = "assignment"
+                };
+
+            // Simple identifier
+            if (context.IDENTIFIER() != null && context.expression().Length == 0)
+                return new IdentifierNode
+                {
+                    Line = context.Start.Line,
+                    Column = context.Start.Column,
+                    Name = context.IDENTIFIER().GetText(),
+                    Type = "identifier"
+                };
+
+            // Binary operation
+            if (context.binaryOp() != null && context.expression().Length == 2)
                 return new BinaryExpressionNode
                 {
                     Line = context.Start.Line,
@@ -412,16 +393,13 @@ namespace test
                     Right = Visit(context.expression(1)) as ExpressionNode,
                     Type = GetBinaryExpressionType(context.binaryOp().GetText())
                 };
-            }
-            else if (context.expression().Length == 1 && context.ASSIGN() == null)
-            {
-                // Unary expression or parenthesized expression
+
+            // Unary expression or parenthesized expression
+            if (context.expression().Length == 1 && context.ASSIGN() == null)
                 return Visit(context.expression(0));
-            }
-            else if (context.INCREMENT() != null || context.DECREMENT() != null)
-            {
+
+            if (context.INCREMENT() != null || context.DECREMENT() != null)
                 return VisitIncrementDecrementExpression(context);
-            }
 
             return null;
         }
@@ -455,9 +433,11 @@ namespace test
         {
             if (context.function() != null)
                 return Visit(context.function());
-            else if (context.@struct() != null)
+            
+            if (context.@struct() != null)
                 return Visit(context.@struct());
-            else if (context.global() != null)
+            
+            if (context.global() != null)
                 return Visit(context.global());
 
             return null;
