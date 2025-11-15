@@ -366,3 +366,6 @@ FodyWeavers.xsd
 /test/Content/obj/
 /test/Content/.antlr/
 
+/test/Content/test1.txt
+/test/Content/test2.txt
+/test/Content/code.scl
