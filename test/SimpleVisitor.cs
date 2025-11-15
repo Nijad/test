@@ -527,10 +527,10 @@ namespace test
                 string operandType = GetExpressionType(context.expression(0));
                 Visit(context.expression(0));
 
-                if (operandType != "bool" && operandType != "unknown")
+                if (operandType != "boolean" && operandType != "unknown")
                     AddSemanticError($"Operator ! can only be applied to boolean expressions, not {operandType}", context);
 
-                return "bool";
+                return "boolean";
             }
 
             if (context.ASSIGN() != null && context.expression().Length == 2)
@@ -598,7 +598,7 @@ namespace test
                 return "double";
 
             if (context.TRUE() != null || context.FALSE() != null)
-                return "bool";
+                return "boolean";
 
             if (context.NULL() != null)
                 return "null";
@@ -622,18 +622,20 @@ namespace test
 
             if (context.binaryOp() != null && context.expression().Length == 2)
             {
-                // **زيارة كلا الطرفين أولاً**
-                Visit(context.expression(0));
-                Visit(context.expression(1));
-
                 // تعبيرات ثنائية
                 string leftType = GetExpressionType(context.expression(0));
                 string rightType = GetExpressionType(context.expression(1));
+                string op = context.binaryOp().GetText();
 
-                if (leftType != null && rightType != null)
-                    return GetBinaryOperationResultType(leftType, rightType, context.binaryOp().GetText());
+                // زيارة كلا الطرفين
+                Visit(context.expression(0));
+                Visit(context.expression(1));
 
-                return null;
+                string resultType = GetBinaryOperationResultType(leftType, rightType, op);
+                if (resultType != null)
+                    return resultType;
+
+                return "unknown";
             }
 
             if (context.ASSIGN() != null && context.expression().Length == 2)
@@ -891,7 +893,7 @@ namespace test
             // الأنواع الأساسية
             if (context.INTEGER() != null) return "int";
             if (context.REAL() != null) return "double";
-            if (context.TRUE() != null || context.FALSE() != null) return "bool";
+            if (context.TRUE() != null || context.FALSE() != null) return "boolean";
             if (context.NULL() != null) return "null";
 
             // المعرفات (متغيرات)
@@ -990,7 +992,9 @@ namespace test
                 string rightType = GetExpressionType(context.expression(1));
                 string op = context.binaryOp().GetText();
 
-                return GetBinaryOperationResultType(leftType, rightType, op);
+                string resultType = GetBinaryOperationResultType(leftType, rightType, op);
+                if (resultType != null)
+                    return resultType;
             }
 
             // في التعيين، النوع هو نوع الطرف الأيسر
@@ -1006,8 +1010,8 @@ namespace test
                 terminalNode.Symbol.Type == SimpleParser.NOT)
             {
                 string operandType = GetExpressionType(context.expression(0));
-                if (operandType == "bool")
-                    return "bool";
+                if (operandType == "boolean")
+                    return "boolean";
                 return "unknown";
             }
 
@@ -1063,7 +1067,7 @@ namespace test
             }
 
             // إذا كان النوع بدون بادئة، تحقق إذا كان هيكلاً
-            if (typeName != "int" && typeName != "double" && typeName != "bool" &&
+            if (typeName != "int" && typeName != "double" && typeName != "boolean" &&
                 typeName != "void" && typeName != "unknown" && typeName != "null")
             {
                 SimpleParser.StructContext structDef = FindStructDefinition(typeName, context);
@@ -1143,15 +1147,17 @@ namespace test
                 return true;
 
             // منع التحويل من bool إلى int أو double والعكس
-            if ((targetType == "bool" && (sourceType == "int" || sourceType == "double")) ||
-                ((targetType == "int" || targetType == "double") && sourceType == "bool"))
+            if ((targetType == "boolean" && (sourceType == "int" || sourceType == "double")) ||
+                ((targetType == "int" || targetType == "double") && sourceType == "boolean"))
+            {
                 return false;
+            }
 
-            // **التحويلات مع فقدان الدقة أصبحت تحذيرات وليست أخطاء**
+            // التحويلات مع فقدان الدقة (تحذير)
             if (targetType == "int" && sourceType == "double")
             {
-                AddSemanticWarning($"Loss of accuracy when converting {sourceType} to {targetType}", context);
-                return true; // هذا تحذير وليس خطأ، لذا نعود بـ true
+                AddSemanticWarning($"فقدان الدقة عند تحويل {sourceType} إلى {targetType}", context);
+                return true;
             }
 
             // null مقبول للهياكل
@@ -1229,37 +1235,36 @@ namespace test
                 case "/":
                     if ((leftType == "int" || leftType == "double") && (rightType == "int" || rightType == "double"))
                         return (leftType == "double" || rightType == "double") ? "double" : "int";
-
-                    AddSemanticWarning($"The calculation is not supported between {leftType} and {rightType}", null);
-                    return "unknown";
+                    break;
+                case "%": // إضافة دعم لعامل الباقي
+                    if ((leftType == "int" || leftType == "double") && (rightType == "int" || rightType == "double"))
+                        return "int"; // الباقي دائماً int
+                    break;
                 case "&&":
                 case "||":
-                    if (leftType == "bool" && rightType == "bool")
-                        return "bool";
-
-                    AddSemanticWarning($"Logical operations are not supported between {leftType} and {rightType}", null);
-                    return "unknown";
+                    if (leftType == "boolean" && rightType == "boolean")
+                        return "boolean";
+                    break;
                 case "==":
                 case "!=":
-                    // السماح بالمقارنة بين أي نوعين متشابهين
-                    if (leftType == rightType)
-                        return "bool";
-                    if ((leftType == "int" || leftType == "double") && (rightType == "int" || rightType == "double"))
-                        return "bool";
-                    AddSemanticWarning($"Comparison between {leftType} and {rightType} is not supported", null);
-                    return "unknown";
                 case "<":
                 case "<=":
                 case ">":
                 case ">=":
-                    if ((leftType == "int" || leftType == "double") && (rightType == "int" || rightType == "double"))
-                        return "bool";
-                    AddSemanticWarning($"Comparison between {leftType} and {rightType} is not supported.", null);
-                    return "unknown";
+                    // السماح بالمقارنة بين أي نوعين متشابهين
+                    if (leftType == rightType)
+                        return "boolean";
+                    // السماح بالمقارنة بين الأنواع الرقمية
+                    else if ((leftType == "int" || leftType == "double") && (rightType == "int" || rightType == "double"))
+                        return "boolean";
+                    // السماح بالمقارنة بين القيم المنطقية
+                    else if (leftType == "boolean" && rightType == "boolean")
+                        return "boolean";
+                    break;
             }
 
-            AddSemanticWarning($"Operation is not supported: {leftType} {op} {rightType}", null);
-            return "unknown";
+            Console.WriteLine($"Operation is not supported: {leftType} {op} {rightType}");
+            return null;
         }
 
         private void AddSemanticError(string message, Antlr4.Runtime.ParserRuleContext context)
@@ -1303,12 +1308,12 @@ namespace test
                     // محاولة إصلاح المشكلة عن طريق التحقق من التعبير مباشرة
                     SimpleParser.ExpressionContext expr = context.expression(0);
 
-                    // إذا كان التعبير يبدأ بـ !، فالنوع يجب أن يكون bool
+                    // إذا كان التعبير يبدأ بـ !، فالنوع يجب أن يكون boolean
                     if (expr.GetChild(0) is ITerminalNode terminal && terminal.Symbol.Type == SimpleParser.NOT)
-                        conditionType = "bool";
+                        conditionType = "boolean";
                 }
 
-                if (conditionType != "bool")
+                if (conditionType != "boolean")
                     AddSemanticError("if condition must be boolean", context);
             }
 
@@ -1328,7 +1333,7 @@ namespace test
             if (context.expression().Length > 0)
             {
                 string conditionType = SafeVisit(context.expression(0)) as string;
-                if (conditionType != "bool")
+                if (conditionType != "boolean")
                     AddSemanticError("while condition must be boolean", context);
             }
 
@@ -1350,7 +1355,7 @@ namespace test
             if (context.expression().Length > 0)
             {
                 string conditionType = SafeVisit(context.expression(0)) as string;
-                if (conditionType != "bool")
+                if (conditionType != "boolean")
                     AddSemanticError("for condition must be boolean", context);
             }
 
