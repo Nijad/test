@@ -9,7 +9,7 @@ COMMENT: '{*' .*? '*}' -> skip;
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
 
 // Keywords
-BOOLEAN: 'Boolean';
+BOOLEAN: 'boolean';
 DOUBLE: 'double';
 INT: 'int';
 IF: 'if';

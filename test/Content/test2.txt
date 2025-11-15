@@ -1,0 +1,428 @@
+prog1
+program MathTest {
+    int main() {
+        int a = 10
+        double b = 3.14
+        int c = a + 5 * 2
+        double d = b - 1.0
+        boolean result = (c > 15) && (d < 3.0)
+
+        if (result) {
+            return 1
+        } else {
+            return 0
+        }
+    }
+}
+
+section .data
+    a dd 10
+    b dq 3.14
+    c dd 0
+    d dq 0.0
+    result db 0
+
+section .text
+global _start
+_start:
+    ; Initialize variables
+    mov eax, 10
+    mov [a], eax
+
+    fld qword [b_initial]
+    fstp qword [b]
+
+    ; Calculate c = a + 5 * 2
+    mov eax, [a]
+    mov ebx, 5
+    imul ebx, 2
+    add eax, ebx
+    mov [c], eax
+
+    ; Calculate d = b - 1.0
+    fld qword [b]
+    fld qword [one]
+    fsubp
+    fstp qword [d]
+
+    ; Evaluate boolean expression
+    mov eax, [c]
+    cmp eax, 15
+    jle false_part
+    fld qword [d]
+    fld qword [three]
+    fcomip st0, st1
+    jbe false_part
+    mov byte [result], 1
+    jmp end_eval
+false_part:
+    mov byte [result], 0
+end_eval:
+
+    ; Return based on result
+    cmp byte [result], 1
+    jne return_zero
+    mov eax, 1
+    jmp exit
+return_zero:
+    mov eax, 0
+exit:
+    mov ebx, eax
+    mov eax, 1
+    int 0x80
+
+section .data
+    b_initial dq 3.14
+    one dq 1.0
+    three dq 3.0
+
+prog2
+program LoopStructTest {
+    struct Point {
+        int x
+        int y
+    }
+
+    int main() {
+        Point p
+        p.x = 0
+        p.y = 0
+
+        int i = 0
+        while (i < 5) {
+            p.x = p.x + i
+            p.y = p.y - i
+            i = i + 1
+        }
+
+        int sum = 0
+        for (int j = 0    ; j < 10; j = j + 1) {
+            sum = sum + j
+            if (sum > 20) {
+                break
+            }
+        }
+
+        return sum
+    }
+}
+
+section .data
+    p_x dd 0
+    p_y dd 0
+    i dd 0
+    sum dd 0
+    j dd 0
+
+section .text
+global _start
+_start:
+    ; Initialize point
+    mov dword [p_x], 0
+    mov dword [p_y], 0
+
+    ; While loop
+    mov dword [i], 0
+while_loop:
+    mov eax, [i]
+    cmp eax, 5
+    jge end_while
+
+    ; p.x = p.x + i
+    mov ebx, [p_x]
+    add ebx, eax
+    mov [p_x], ebx
+
+    ; p.y = p.y - i
+    mov ecx, [p_y]
+    sub ecx, eax
+    mov [p_y], ecx
+
+    ; i = i + 1
+    inc eax
+    mov [i], eax
+    jmp while_loop
+
+end_while:
+    ; For loop
+    mov dword [j], 0
+    mov dword [sum], 0
+for_loop:
+    mov eax, [j]
+    cmp eax, 10
+    jge end_for
+
+    ; sum = sum + j
+    mov ebx, [sum]
+    add ebx, eax
+    mov [sum], ebx
+
+    ; Check break condition
+    cmp ebx, 20
+    jle continue_for
+    jmp end_for
+
+continue_for:
+    ; j = j + 1
+    inc eax
+    mov [j], eax
+    jmp for_loop
+
+end_for:
+    ; Return sum
+    mov eax, [sum]
+    mov ebx, eax
+    mov eax, 1
+    int 0x80
+
+prog3
+program LogicOpsTest {
+    boolean checkConditions(int x, double y) {
+        return !(x == 0) && (y > 0.0 || x < 100)
+    }
+
+    int main() {
+        int a = 5
+        double b = -2.5
+
+        // Test increment/decrement operations
+        a++
+        ++a
+        b--
+
+        boolean result1 = checkConditions(a, b)
+        boolean result2 = (a != 0) || (b == 0.0)
+
+        if (result1 && result2) {
+            return a * 2
+        } else {
+            return a / 2
+        }
+    }
+}
+
+section .data
+    a dd 5
+    b dq -2.5
+    result1 db 0
+    result2 db 0
+
+section .text
+global _start
+_start:
+    ; Initialize variables
+    mov dword [a], 5
+    fld qword [b_initial]
+    fstp qword [b]
+
+    ; Increment/decrement operations
+    mov eax, [a]
+    inc eax               ; a++
+    inc eax               ; ++a
+    mov [a], eax
+
+    fld qword [b]
+    fld qword [one]
+    fsubp                 ; b--
+    fstp qword [b]
+
+    ; Call checkConditions
+    push dword [b+4]
+    push dword [b]
+    push dword [a]
+    call checkConditions
+    add esp, 12
+    mov [result1], al
+
+    ; Evaluate result2 = (a != 0) || (b == 0.0)
+    mov eax, [a]
+    test eax, eax
+    jnz set_result2_true
+    fld qword [b]
+    ftst
+    fstsw ax
+    sahf
+    jz set_result2_true
+    mov byte [result2], 0
+    jmp end_result2
+set_result2_true:
+    mov byte [result2], 1
+end_result2:
+
+    ; Final if-else
+    cmp byte [result1], 1
+    jne else_branch
+    cmp byte [result2], 1
+    jne else_branch
+
+    ; then branch: return a * 2
+    mov eax, [a]
+    imul eax, 2
+    jmp exit
+
+else_branch:
+    ; else branch: return a / 2
+    mov eax, [a]
+    mov edx, 0
+    mov ebx, 2
+    idiv ebx
+
+exit:
+    mov ebx, eax
+    mov eax, 1
+    int 0x80
+
+checkConditions:
+    push ebp
+    mov ebp, esp
+
+    ; Get parameters
+    mov eax, [ebp+8]      ; x
+    fld qword [ebp+12]    ; y
+
+                          ; !(x == 0)
+    test eax, eax
+    jz return_false
+
+    ; (y > 0.0 || x < 100)
+    ftst
+    fstsw ax
+    sahf
+    ja return_true
+
+    cmp eax, 100
+    jl return_true
+
+    jmp return_false
+
+return_true:
+    mov al, 1
+    jmp end_check
+
+return_false:
+    mov al, 0
+
+end_check:
+    pop ebp
+    ret
+
+section .data
+    b_initial dq -2.5
+    one dq 1.0
+
+prog4
+program ArrayStructTest {
+    struct Vector {
+        double x
+        double y
+        double z
+    }
+
+    int main() {
+        array vectors[3]
+        int i = 0
+
+        // Initialize vectors
+        while (i < 3) {
+            vectors[i].x = i * 1.5
+            vectors[i].y = i * 2.0
+            vectors[i].z = i * 0.5
+            i = i + 1
+        }
+
+        // Calculate sum of all components
+        double total = 0.0
+        for (int j = 0    ; j < 3; j = j + 1) {
+            total = total + vectors[j].x + vectors[j].y + vectors[j].z
+        }
+
+        return (int)total
+    }
+}
+
+section .data
+    vectors times 24 db 0 ; 3 vectors * 8 bytes * 3 components
+    i dd 0
+    j dd 0
+    total dq 0.0
+
+section .text
+global _start
+_start:
+    ; Initialize loop counter
+    mov dword [i], 0
+
+init_loop:
+    mov eax, [i]
+    cmp eax, 3
+    jge end_init
+
+    ; Calculate base address for vectors[i]
+    imul ebx, eax, 24     ; 24 bytes per vector (3 doubles * 8 bytes)
+    lea ecx, [vectors + ebx]
+
+    ; vectors[i].x = i * 1.5
+    fild dword [i]
+    fld qword [one_point_five]
+    fmulp
+    fstp qword [ecx]
+
+    ; vectors[i].y = i * 2.0
+    fild dword [i]
+    fld qword [two]
+    fmulp
+    fstp qword [ecx + 8]
+
+    ; vectors[i].z = i * 0.5
+    fild dword [i]
+    fld qword [half]
+    fmulp
+    fstp qword [ecx + 16]
+
+    ; i = i + 1
+    inc eax
+    mov [i], eax
+    jmp init_loop
+
+end_init:
+    ; Calculate total sum
+    mov dword [j], 0
+    fldz
+    fstp qword [total]
+
+sum_loop:
+    mov eax, [j]
+    cmp eax, 3
+    jge end_sum
+
+    ; Calculate base address
+    imul ebx, eax, 24
+    lea ecx, [vectors + ebx]
+
+    ; Add all components to total
+    fld qword [total]
+    fadd qword [ecx]      ; x
+    fadd qword [ecx + 8]  ; y
+    fadd qword [ecx + 16] ; z
+    fstp qword [total]
+
+    ; j = j + 1
+    inc eax
+    mov [j], eax
+    jmp sum_loop
+
+end_sum:
+    ; Convert total to int and return
+    fld qword [total]
+    fistp dword [temp_int]
+    mov eax, [temp_int]
+
+    mov ebx, eax
+    mov eax, 1
+    int 0x80
+
+section .data
+    one_point_five dq 1.5
+    two dq 2.0
+    half dq 0.5
+    temp_int dd 0

@@ -1,25 +1,15 @@
-﻿program StructParameterTest {
-    struct Point {
-        int x;
-        int y;
-    }
-    
-    struct Circle : Point {
-        double radius;
-    }
-    
-    double calculateArea(Circle c) {
-        return 3.14159 * c.radius * c.radius;
-    }
-    
+﻿program MathTest {
     int main() {
-        Circle circle;
-        Point point;
-        
-        calculateArea(circle);     // صحيح
-        calculateArea(point);      // خطأ: نوع غير متوافق
-        calculateArea(null);       // صحيح (null مقبول للهياكل)
-        
-        return 0;
+        int a = 10;
+        double b = 3.14;
+        int c = a + 5 * 2;
+        double d = b - 1.0;
+        boolean result = (c > 15) && (d < 3.0);
+
+        if (result) {
+            return 1;
+        } else {
+            return 0;
+        }
     }
 }
