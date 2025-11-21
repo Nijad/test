@@ -23,7 +23,7 @@
 
         public override string ToString()
         {
-            return $"{Name} ({Type}) : {DataType} [Scope: {Scope}, Line: {Line}]";
+            return $"{Name} ({Type}) : {DataType} [Scope: {Scope}, Line: {Line}, Column {Column}]";
         }
     }
 }

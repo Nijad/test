@@ -21,9 +21,9 @@ namespace test
             visitedNodes = new HashSet<ParserRuleContext>();
         }
 
-        private void AddSemanticWarning(string message, Antlr4.Runtime.ParserRuleContext context)
+        private void AddSemanticWarning(string message, ParserRuleContext context)
         {
-            string warning = $"Semantic warning at line {context.Start.Line}: {message}";
+            string warning = $"Semantic warning at line {context.Start.Line}, column {context.start.Column}: {message}";
             semanticWarnings.Add(warning);
             Console.WriteLine($"{warning}");
         }
@@ -778,7 +778,7 @@ namespace test
             return null;
         }
 
-        private SimpleParser.ProgramContext GetProgramContext(Antlr4.Runtime.ParserRuleContext context)
+        private SimpleParser.ProgramContext GetProgramContext(ParserRuleContext context)
         {
             if (context == null) return null;
 
@@ -1051,7 +1051,7 @@ namespace test
             return typeName;
         }
 
-        private string NormalizeStructType(string typeName, Antlr4.Runtime.ParserRuleContext context)
+        private string NormalizeStructType(string typeName, ParserRuleContext context)
         {
             if (typeName == null) return "unknown";
 
@@ -1133,7 +1133,7 @@ namespace test
             return null;
         }
 
-        private bool AreTypesCompatible(string targetType, string sourceType, Antlr4.Runtime.ParserRuleContext context)
+        private bool AreTypesCompatible(string targetType, string sourceType, ParserRuleContext context)
         {
             if (targetType == "unknown" || sourceType == "unknown")
                 return true;
@@ -1267,14 +1267,14 @@ namespace test
             return null;
         }
 
-        private void AddSemanticError(string message, Antlr4.Runtime.ParserRuleContext context)
+        private void AddSemanticError(string message, ParserRuleContext context)
         {
-            string error = $"Semantic error at line {context.Start.Line}: {message}";
+            string error = $"Semantic error at line {context.Start.Line}, column {context.start.Column}: {message}";
             semanticErrors.Add(error);
             Console.WriteLine($"{error}");
         }
 
-        private object SafeVisit(Antlr4.Runtime.ParserRuleContext context)
+        private object SafeVisit(ParserRuleContext context)
         {
             if (context == null) 
                 return null;

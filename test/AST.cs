@@ -150,7 +150,7 @@
         public List<StatementNode> Statements { get; set; } = new List<StatementNode>();
     }
 
-    // عقدة تعريف المتغير (ليست تعبيراً)
+    // عقدة تعريف المتغير 
     public class VariableDeclarationNode : StatementNode
     {
         public string Type { get; set; }
