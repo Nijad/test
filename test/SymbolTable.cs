@@ -2,11 +2,15 @@
 {
     public class SymbolTable
     {
-        private Stack<Dictionary<string, Symbol>> scopes = new Stack<Dictionary<string, Symbol>>();
-        private Stack<string> scopeNames = new Stack<string>();
+        private Stack<Dictionary<string, Symbol>> scopes 
+            = new Stack<Dictionary<string, Symbol>>(); // مكدس من القواميس لتمثيل النطاقات المختلفة
+        private Stack<string> scopeNames 
+            = new Stack<string>(); // مكدس لأسماء النطاقات
 
-        public string CurrentScope => scopeNames.Count > 0 ? scopeNames.Peek() : "global";
-        public int ScopeDepth => scopeNames.Count;
+        public string CurrentScope 
+            => scopeNames.Count > 0 ? scopeNames.Peek() : "global"; // اسم النطاق الحالي
+        public int ScopeDepth 
+            => scopeNames.Count; // عمق النطاق الحالي
 
         public SymbolTable()
         {

@@ -1,8 +1,8 @@
-﻿grammar Simple;
+grammar Simple;
 
 // Lexer Rules
 WS: [ \t\r\n]+ -> skip;
-TAB: '\t' -> skip;
+//TAB: '\t' -> skip;
 ENTER: '\r'? '\n' -> skip;
 
 COMMENT: '{*' .*? '*}' -> skip;
@@ -48,7 +48,7 @@ DECREMENT: '--';
 NOT: '!';
 
 // Identifiers and literals
-IDENTIFIER: [a-zA-Z][a-zA-Z0-9_]*;
+IDENTIFIER: [_a-zA-Z][a-zA-Z0-9_]*;
 INTEGER: [0-9]+;
 REAL:
 	[0-9]+ '.' [0-9]* ([eE] [+-]? [0-9]+)?
@@ -64,6 +64,12 @@ SEMI: ';';
 COMMA: ',';
 DOT: '.';
 COLON: ':';
+
+UNKNOWN_CHAR:
+	. {
+		string msg = $"Lexical error: Unknown character: '{Text}' at line {Line}, column {Column}";
+        throw new RecognitionException(msg, this, InputStream, null);
+    };
 
 // Parser Rules
 program: PROGRAM IDENTIFIER LBRACE member* RBRACE EOF;

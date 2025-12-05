@@ -106,13 +106,13 @@ namespace test
             {
                 string parentName = context.IDENTIFIER(1).GetText();
                 SimpleParser.ProgramContext programContext = GetProgramContext(context);
-
+                // التحقق من تعريف الهيكل الأب
                 if (!IsStructDefined(parentName, programContext))
                     AddSemanticError($"Struct parent '{parentName}' is not declared", context);
                 else
                     Console.WriteLine($"Struct '{structName}' inherits from '{parentName}'");
             }
-
+            // إنشاء رمز الهيكل
             Symbol structSymbol = new Symbol(
                 structName,
                 "struct",
@@ -121,15 +121,16 @@ namespace test
                 context.Start.Column,
                 symbolTable.CurrentScope
             );
-
+            // إضافة الهيكل إلى جدول الرموز
             if (!symbolTable.AddSymbol(structSymbol))
                 AddSemanticError($"الهيكل '{structName}' معرّف مسبقاً", context);
         }
 
+        // الحصول على جميع أعضاء الهيكل، بما في ذلك الأعضاء الموروثة
         private List<string> GetAllStructMembers(SimpleParser.StructContext structContext)
         {
             List<string> members = new List<string>();
-
+            // إضافة الأعضاء المباشرين
             if (structContext?.struct_members() != null)
                 foreach (IParseTree? child in structContext.struct_members().children)
                     if (child is SimpleParser.Struct_memberContext memberContext)
@@ -397,6 +398,8 @@ namespace test
                     symbolTable.CurrentScope
                 );
 
+                // إضافة المتغير إلى جدول الرموز
+                //التحقق من عدم إعادة التعريف في نفس النطاق ضمناً
                 if (!symbolTable.AddSymbol(varSymbol))
                     AddSemanticError($"variable '{varName}' is already declared", context);
 
@@ -431,15 +434,15 @@ namespace test
             if (context.IDENTIFIER() != null && context.LPAREN() != null)
             {
                 string functionName = context.IDENTIFIER().GetText();
-                Symbol functionSymbol = symbolTable.Lookup(functionName);
+                Symbol functionSymbol = symbolTable.Lookup(functionName);// البحث عن تعريف الدالة
 
-                if (functionSymbol == null)
+                if (functionSymbol == null) // الدالة غير معرفة
                 {
                     AddSemanticError($"Function '{functionName}' is not declared", context);
                     return "unknown";
                 }
 
-                if (functionSymbol.Type != "function")
+                if (functionSymbol.Type != "function")// ليس دالة
                 {
                     AddSemanticError($"'{functionName}' is not function", context);
                     return "unknown";
@@ -857,7 +860,7 @@ namespace test
                         AddSemanticError($"The return type {returnType} does not match the function {currentFunctionReturnType}", context);
             }
             else if (currentFunctionReturnType != "void")
-                AddSemanticError("الدالة يجب أن ترجع قيمة", context);
+                AddSemanticError("The function must return value", context);
 
             return null;
         }
@@ -1102,10 +1105,11 @@ namespace test
             return null;
         }
 
+        // الحصول على نوع عضو الهيكل، مع دعم الوراثة
         private string GetStructMemberType(SimpleParser.StructContext structContext, string memberName)
         {
             DebugStructInheritance(structContext, memberName);
-
+            // التحقق من الأعضاء المباشرين أولاً
             if (structContext?.struct_members() == null)
                 return null;
 
@@ -1276,7 +1280,7 @@ namespace test
 
         private object SafeVisit(ParserRuleContext context)
         {
-            if (context == null) 
+            if (context == null)
                 return null;
 
             if (visitedNodes.Contains(context))
@@ -1323,7 +1327,7 @@ namespace test
 
             // جملة else
             if (context.ELSE() != null && context.statement().Length > 1)
-                SafeVisit(context.statement(1)); 
+                SafeVisit(context.statement(1));
 
             return null;
         }

@@ -8,7 +8,12 @@ namespace test
         public override void SyntaxError(IRecognizer recognizer, IToken offendingSymbol,
             int line, int charPositionInLine, string msg, RecognitionException e)
         {
-            string errorMessage = $"Syntax Error at line {line}, column {charPositionInLine}: {msg}";
+            string errorMessage;
+            if (e != null && msg.StartsWith("Lexical"))
+                errorMessage = msg;
+            else
+                errorMessage = $"Syntax error at line {line}, column {charPositionInLine}: {msg}";
+            
             Errors.Add(errorMessage);
         }
 

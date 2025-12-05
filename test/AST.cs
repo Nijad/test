@@ -1,7 +1,5 @@
 ﻿namespace test
 {
-    using System.Collections.Generic;
-
     // العقدة الأساسية في شجرة الـ AST
     public abstract class ASTNode
     {
