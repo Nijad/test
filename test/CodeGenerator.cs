@@ -116,7 +116,7 @@ namespace test
             code.AppendLine("mov ebp, esp");
 
             // ✅ تحقق و أضف المعاملات إلى SymbolTable
-            Console.WriteLine($"[DEBUG] Processing function: {functionName}");
+            //Console.WriteLine($"[DEBUG] Processing function: {functionName}");
             // معالجة الباراميترات أولاً
             if (context.arguments() != null)
             {
@@ -124,7 +124,7 @@ namespace test
                 {
                     string argName = arg.IDENTIFIER().GetText();
                     string argType = arg.type().GetText();
-                    Console.WriteLine($"[DEBUG] Function parameter: {argName} : {argType}");
+                    //Console.WriteLine($"[DEBUG] Function parameter: {argName} : {argType}");
                 }
                 SafeVisit(context.arguments());
             }
@@ -137,10 +137,10 @@ namespace test
             }
 
             // ✅ تحقق نهائي من إزاحات المتغيرات
-            Console.WriteLine($"[FINAL CHECK] Function {currentFunctionName} local variables:");
+            //Console.WriteLine($"[FINAL CHECK] Function {currentFunctionName} local variables:");
             foreach (var entry in localVarOffsets)
             {
-                Console.WriteLine($"[FINAL CHECK]   {entry.Key} at [ebp-{entry.Value}]");
+                //Console.WriteLine($"[FINAL CHECK]   {entry.Key} at [ebp-{entry.Value}]");
             }
 
             // توليد كود الجمل داخل الدالة
@@ -233,7 +233,7 @@ namespace test
                         localVarOffsets[varName] = offset;
                         size += varSize;
 
-                        Console.WriteLine($"[DEBUG] Local variable '{varName}' of type '{varType}' at offset {offset}");
+                        //Console.WriteLine($"[DEBUG] Local variable '{varName}' of type '{varType}' at offset {offset}");
                     }
                 }
             }
@@ -283,11 +283,11 @@ namespace test
 
             if (!symbolTable.AddSymbol(paramSymbol))
             {
-                Console.WriteLine($"[WARNING] Failed to add parameter '{argName}' to symbol table");
+                //Console.WriteLine($"[WARNING] Failed to add parameter '{argName}' to symbol table");
             }
             else
             {
-                Console.WriteLine($"[SUCCESS] Added parameter '{argName}' of type '{type}' to symbol table");
+                //Console.WriteLine($"[SUCCESS] Added parameter '{argName}' of type '{type}' to symbol table");
             }
 
             code.AppendLine($"; Parameter: {argName} at [ebp+{paramStackOffset}]");
@@ -536,7 +536,7 @@ namespace test
             if (varType == null)
             {
                 varType = "int"; // افتراضي
-                Console.WriteLine($"[WARNING] Unknown type for variable '{varName}', assuming 'int'");
+                //Console.WriteLine($"[WARNING] Unknown type for variable '{varName}', assuming 'int'");
             }
 
             // البحث في الباراميترات أولاً
@@ -783,7 +783,7 @@ namespace test
             // كشف الأعداد الحقيقية المباشرة
             if (context.REAL() != null)
             {
-                Console.WriteLine($"[DEBUG] Found REAL: {context.REAL().GetText()}");
+                //Console.WriteLine($"[DEBUG] Found REAL: {context.REAL().GetText()}");
                 return true;
             }
 
@@ -793,7 +793,7 @@ namespace test
                 string varName = context.IDENTIFIER().GetText();
                 var symbol = symbolTable.Lookup(varName);
                 bool isDouble = symbol?.DataType?.ToLower() == "double";
-                Console.WriteLine($"[DEBUG] Identifier '{varName}': symbol={symbol?.Name}, type={symbol?.DataType}, isDouble={isDouble}");
+                //Console.WriteLine($"[DEBUG] Identifier '{varName}': symbol={symbol?.Name}, type={symbol?.DataType}, isDouble={isDouble}");
                 return isDouble;
             }
 
@@ -803,7 +803,7 @@ namespace test
                 string memberName = context.IDENTIFIER().GetText();
                 var symbol = symbolTable.Lookup(memberName);
                 bool isDouble = symbol?.DataType?.ToLower() == "double";
-                Console.WriteLine($"[DEBUG] Struct member '{memberName}': symbol={symbol?.Name}, type={symbol?.DataType}, isDouble={isDouble}");
+                //Console.WriteLine($"[DEBUG] Struct member '{memberName}': symbol={symbol?.Name}, type={symbol?.DataType}, isDouble={isDouble}");
                 return isDouble;
             }
 
@@ -813,7 +813,7 @@ namespace test
                 string functionName = context.IDENTIFIER().GetText();
                 var symbol = symbolTable.Lookup(functionName);
                 bool isDouble = symbol?.DataType?.ToLower() == "double";
-                Console.WriteLine($"[DEBUG] Function call '{functionName}': returns {symbol?.DataType}, isDouble={isDouble}");
+                //Console.WriteLine($"[DEBUG] Function call '{functionName}': returns {symbol?.DataType}, isDouble={isDouble}");
                 return isDouble;
             }
 
@@ -823,7 +823,7 @@ namespace test
                 bool leftHasFP = HasFloatingPoint(context.expression(0));
                 bool rightHasFP = HasFloatingPoint(context.expression(1));
                 bool result = leftHasFP || rightHasFP;
-                Console.WriteLine($"[DEBUG] Binary operation: leftHasFP={leftHasFP}, rightHasFP={rightHasFP}, result={result}");
+                //Console.WriteLine($"[DEBUG] Binary operation: leftHasFP={leftHasFP}, rightHasFP={rightHasFP}, result={result}");
                 return result;
             }
 
@@ -831,7 +831,7 @@ namespace test
             if (context.expression().Length == 1 && context.ASSIGN() == null)
             {
                 bool hasFP = HasFloatingPoint(context.expression(0));
-                Console.WriteLine($"[DEBUG] Unary expression: hasFP={hasFP}");
+                //Console.WriteLine($"[DEBUG] Unary expression: hasFP={hasFP}");
                 return hasFP;
             }
 
@@ -839,11 +839,11 @@ namespace test
             if (context.ASSIGN() != null && context.expression().Length == 2)
             {
                 bool hasFP = HasFloatingPoint(context.expression(1));
-                Console.WriteLine($"[DEBUG] Assignment: hasFP={hasFP}");
+                //Console.WriteLine($"[DEBUG] Assignment: hasFP={hasFP}");
                 return hasFP;
             }
 
-            Console.WriteLine($"[DEBUG] Unknown expression type: {context.GetText()}");
+            //Console.WriteLine($"[DEBUG] Unknown expression type: {context.GetText()}");
             return false;
         }
 
@@ -1115,7 +1115,7 @@ namespace test
                     var symbol = symbolTable.Lookup(varName);
                     string varType = symbol?.DataType?.ToLower() ?? GetVariableTypeFromContext(context)?.ToLower();
 
-                    Console.WriteLine($"[DEBUG] Storing to variable '{varName}': type={varType}, resultReg={resultReg}, offset={offset}");
+                    //Console.WriteLine($"[DEBUG] Storing to variable '{varName}': type={varType}, resultReg={resultReg}, offset={offset}");
 
                     if (varType == "double")
                     {
@@ -1359,11 +1359,11 @@ namespace test
 
                 if (!symbolTable.AddSymbol(memberSymbol))
                 {
-                    Console.WriteLine($"[WARNING] Failed to add static member '{varName}' to symbol table");
+                    //Console.WriteLine($"[WARNING] Failed to add static member '{varName}' to symbol table");
                 }
                 else
                 {
-                    Console.WriteLine($"[SUCCESS] Added static member '{varName}' of type '{type}' to symbol table");
+                    //Console.WriteLine($"[SUCCESS] Added static member '{varName}' of type '{type}' to symbol table");
                 }
 
                 // الكود الأصلي لإنشاء البيانات

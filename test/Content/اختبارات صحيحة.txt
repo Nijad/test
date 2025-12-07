@@ -1,0 +1,235 @@
+اختبارات البرنامج الرئيسي
+// اختبار 1: برنامج بسيط بدون أعضاء
+program Test1 { }
+
+// اختبار 2: برنامج بجميع أنواع الأعضاء
+program Test2 {
+    struct Point { int x; int y; }
+    int globalVar;
+    function void main() { }
+}
+
+اختبارات الهياكل
+// اختبار 6: هيكل بسيط
+struct Point { 
+    int x;
+    int y;
+}
+
+// اختبار 7: هيكل مع وراثة
+struct Circle : Shape {
+    double radius;
+}
+
+// اختبار 8: هيكل مع أعضاء ثابتة
+struct Config {
+    static int maxValue;
+    static double PI;
+}
+
+اختبارات الدوال
+// اختبار 13: دالة بدون معاملات
+function void main() { }
+
+// اختبار 14: دالة مع معاملات
+function int add(int x, int y) {
+    return x + y;
+}
+
+// اختبار 15: دالة مع أنواع مختلفة
+function double calculate(double a, int b) {
+    return a * b;
+}
+
+// اختبار 16: دالة مع جمل متعددة
+function void process() {
+    int x = 5;
+    double y = 3.14;
+    x = x * 2;
+}
+
+اختبار المتغيرات العالمية
+// اختبار 22: متغير عالمي واحد
+int globalVar;
+
+// اختبار 23: متغيرات متعددة
+int x, y, z;
+
+// اختبار 24: متغيرات مع تهيئة
+double pi = 3.14;
+boolean flag = true;
+
+// اختبار 25: متغيرات بأنواع مختلفة
+int counter = 0;
+double total = 0.0;
+boolean enabled = false;
+Point p;
+
+اختبارات التعبيرات
+// اختبار 30: تعبيرات حسابية بسيطة
+x = 5 + 3;
+y = a * b - c / d;
+
+// اختبار 31: تعبيرات مقارنة
+result = x > y;
+flag = a == b && c != d;
+
+// اختبار 32: تعبيرات مع أقواس
+z = (x + y) * (a - b);
+
+// اختبار 33: تعبيرات مع الزيادة والنقصان
+x++;
+--y;
+
+// اختبار 34: تعبيرات مع العوامل المنطقية
+condition = a > b || c < d && e == f;
+
+// اختبار 35: تعبيرات مع الوصول لأعضاء الهياكل
+point.x = 10;
+circle.radius = point.x * 2;
+
+// اختبار 36: تعبيرات مع استدعاء دوال
+result = calculate(x, y);
+
+اختبارات الجمل
+// اختبار 42: جملة IF بسيطة
+if (x > 5) {
+    x = 0;
+}
+
+// اختبار 43: جملة IF-ELSE
+if (condition) {
+    doSomething();
+} else {
+    doSomethingElse();
+}
+
+// اختبار 44: جملة WHILE
+while (x < 10) {
+    x++;
+}
+
+// اختبار 45: جملة FOR
+for (int i = 0; i < 10; i++) {
+    sum = sum + i;
+}
+
+// اختبار 46: جملة RETURN
+return x + y;
+
+// اختبار 47: كتلة جمل
+{
+    int a = 5;
+    int b = 10;
+    int c = a + b;
+}
+
+// اختبار 48: جملة WITH
+with (obj) {
+    x = 5;
+    y = 10;
+}
+
+اختبارات أنواع البيانات
+// اختبار 55: أنواع أساسية
+int x;
+double y;
+boolean z;
+
+// اختبار 56: أنواع مخصصة (هياكل)
+Point p;
+Circle c;
+
+اختبارات التعليقات والمسافات البيضاء
+// اختبار 59: برنامج مع تعليقات متعددة
+program Test {
+    // تعليق على سطر واحد
+    int x;  // تعليق في نهاية السطر
+    
+    {* تعليق
+       متعدد
+       الأسطر *}
+    
+    function void test() {
+        // دالة مع تعليقات
+    }
+}
+
+اختبارات حالات متكاملة
+// اختبار 60: برنامج متكامل
+program Calculator {
+    // هياكل
+    struct Vector {
+        double x;
+        double y;
+    }
+    
+    // متغيرات عالمية
+    double PI = 3.14159;
+    
+    // دوال
+    function double dotProduct(Vector v1, Vector v2) {
+        return v1.x * v2.x + v1.y * v2.y;
+    }
+    
+    function void main() {
+        Vector a, b;
+        a.x = 1.0;
+        a.y = 2.0;
+        b.x = 3.0;
+        b.y = 4.0;
+        
+        double result = dotProduct(a, b);
+        
+        if (result > 10) {
+            return;
+        } else {
+            while (result < 100) {
+                result = result * 2;
+            }
+        }
+    }
+}
+
+اختبارات الحالات الحدودية
+// اختبار 62: برنامج بدون محتوى
+program Empty { }
+
+// اختبار 63: دالة بدون جمل
+function void empty() { }
+
+// اختبار 64: هيكل بدون أعضاء
+struct EmptyStruct { }
+
+// اختبار 65: تعبير معقد متداخل
+x = ((a + b) * (c - d)) / (e % f);
+
+// اختبار 66: تعريفات متعددة على سطر واحد
+int a, b, c; double x, y, z;
+
+اختبارات استدعاء الدوال
+// اختبار 71: استدعاء بدون معاملات
+initialize();
+
+// اختبار 72: استدعاء بمعامل واحد
+calculate(5);
+
+// اختبار 73: استدعاء بمعاملات متعددة
+add(x, y, z);
+
+// اختبار 74: استدعاء متداخل
+result = add(multiply(a, b), divide(c, d));
+
+اختبارات الوصول لأعضاء الهياكل
+// اختبار 79: قراءة عضو
+x = point.x;
+
+// اختبار 80: كتابة عضو
+point.x = 10;
+
+// اختبار 81: وصول متداخل
+center.x = circle.center.x;
+
+// اختبار 82: استخدام مع تعبيرات
+distance = sqrt(point.x * point.x + point.y * point.y);
+

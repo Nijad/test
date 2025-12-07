@@ -65,11 +65,7 @@ COMMA: ',';
 DOT: '.';
 COLON: ':';
 
-UNKNOWN_CHAR:
-	. {
-		string msg = $"Lexical error: Unknown character: '{Text}' at line {Line}, column {Column}";
-        throw new RecognitionException(msg, this, InputStream, null);
-    };
+UNKNOWN_CHAR: . {};
 
 // Parser Rules
 program: PROGRAM IDENTIFIER LBRACE member* RBRACE EOF;

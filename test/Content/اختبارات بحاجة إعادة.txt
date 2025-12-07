@@ -1,0 +1,90 @@
+program TypeMismatch
+{
+    void test() {
+        int x;
+        double y = 3.14;
+        x = y;  // خطأ دلالي: فقدان دقة (تحذير)
+
+        boolean flag;
+        flag = 5;  // خطأ دلالي: لا يمكن تعيين int إلى boolean
+
+        int z;
+        z = false;  // خطأ دلالي: لا يمكن تعيين boolean إلى int 
+    }
+}
+
+program InvalidOperations
+{
+    void test() {
+        int x = 5;
+        boolean b = true;
+
+        int result = x + b;  // خطأ دلالي: لا يمكن جمع int و boolean
+
+        boolean b2 = x && b;  // خطأ دلالي: لا يمكن استخدام && مع int
+    }
+}
+
+program OutOfScope
+{
+    void outer() {
+        int x = 5;
+
+        if (true)
+        {
+            int y = 10;
+        }
+
+        y = 20;  // خطأ دلالي: y خارج النطاق (محددة داخل if)
+    }
+}
+
+program DivisionByZero
+{
+    void test() {
+        int x = 10;
+        int y = 0;
+        int result = x / y;  // تحذير: قسمة على صفر
+
+        double a = 5.0;
+        double b = 0.0;
+        double res = a / b;  // تحذير: قسمة على صفر
+    }
+}
+
+program IntegerOverflow
+{
+    void test() {
+        int max = 2147483647;
+        int overflow = max + 1;  // تحذير: تجاوز النطاق
+    }
+}
+
+//تحذير: استخدام متغيرات غير مهيأة
+program UninitializedVariable
+{
+    void test() {
+        int x;
+        int y = x + 5;  // تحذير: استخدام x قبل التهيئة
+
+        double d;
+        boolean b = (d > 0);  // تحذير: استخدام d قبل التهيئة
+    }
+}
+
+program StaticMembers
+{
+    struct MathConstants
+    {
+        static double PI = 3.14159;
+        static double E = 2.71828;
+    }
+
+    void test()
+    {
+        double area = MathConstants.PI * 5 * 5;  // صحيح
+
+        // خطأ: محاولة تعيين قيمة لعضو ثابت من غير تعريف ثابت
+        MathConstants.PI = 3.14;
+    }
+}

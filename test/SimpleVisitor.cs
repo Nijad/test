@@ -25,17 +25,17 @@ namespace test
         {
             string warning = $"Semantic warning at line {context.Start.Line}, column {context.start.Column}: {message}";
             semanticWarnings.Add(warning);
-            Console.WriteLine($"{warning}");
+            //Console.WriteLine($"{warning}");
         }
 
         public override object VisitProgram([NotNull] SimpleParser.ProgramContext context)
         {
-            Console.WriteLine("=== All Symbols in symbol table ===");
+            //Console.WriteLine("=== All Symbols in symbol table ===");
             symbolTable.PrintAllSymbols();
             symbolTable.EnterScope("global");
 
             string programName = context.IDENTIFIER().GetText();
-            Console.WriteLine($"start program: {programName}");
+            //Console.WriteLine($"start program: {programName}");
 
             // المرحلة 1: جمع جميع التعريفات أولاً (الدوال، المتغيرات العالمية، الهياكل)
             foreach (SimpleParser.MemberContext? member in context.member())
@@ -109,8 +109,8 @@ namespace test
                 // التحقق من تعريف الهيكل الأب
                 if (!IsStructDefined(parentName, programContext))
                     AddSemanticError($"Struct parent '{parentName}' is not declared", context);
-                else
-                    Console.WriteLine($"Struct '{structName}' inherits from '{parentName}'");
+                //else
+                    //Console.WriteLine($"Struct '{structName}' inherits from '{parentName}'");
             }
             // إنشاء رمز الهيكل
             Symbol structSymbol = new Symbol(
@@ -123,7 +123,7 @@ namespace test
             );
             // إضافة الهيكل إلى جدول الرموز
             if (!symbolTable.AddSymbol(structSymbol))
-                AddSemanticError($"الهيكل '{structName}' معرّف مسبقاً", context);
+                AddSemanticError($"Structure '{structName}' is already declared", context);
         }
 
         // الحصول على جميع أعضاء الهيكل، بما في ذلك الأعضاء الموروثة
@@ -154,8 +154,8 @@ namespace test
 
         private void DebugStructAccess(SimpleParser.ExpressionContext context)
         {
-            Console.WriteLine($"=== Access to Structs ===");
-            Console.WriteLine($"Expression: {context.GetText()}");
+            //Console.WriteLine($"=== Access to Structs ===");
+            //Console.WriteLine($"Expression: {context.GetText()}");
 
             if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null)
             {
@@ -163,39 +163,39 @@ namespace test
                 string baseType = GetExpressionType(baseExpr);
                 string memberName = context.IDENTIFIER().GetText();
 
-                Console.WriteLine($"Base Type: {baseType}");
-                Console.WriteLine($"Member Name: {memberName}");
-                Console.WriteLine($"Is Base Type Struct?: {IsStructType(baseType)}");
+                //Console.WriteLine($"Base Type: {baseType}");
+                //Console.WriteLine($"Member Name: {memberName}");
+                //Console.WriteLine($"Is Base Type Struct?: {IsStructType(baseType)}");
 
                 if (IsStructType(baseType))
                 {
                     string structName = GetStructNameFromType(baseType);
-                    Console.WriteLine($"Struct Name: {structName}");
+                    //Console.WriteLine($"Struct Name: {structName}");
 
                     SimpleParser.StructContext? structDef = FindStructDefinition(structName, context);
-                    Console.WriteLine($"Struct Definition: {(structDef != null ? "Exists" : "Does not exist")}");
+                    //Console.WriteLine($"Struct Definition: {(structDef != null ? "Exists" : "Does not exist")}");
 
                     if (structDef != null)
                     {
                         string memberType = GetStructMemberType(structDef, memberName);
-                        Console.WriteLine($"Member Type: {memberType ?? "Does not exist"}");
+                        //Console.WriteLine($"Member Type: {memberType ?? "Does not exist"}");
 
                         if (memberType == null)
                         {
                             memberType = FindMemberInParentStructs(structDef, memberName, context);
-                            Console.WriteLine($"Member Type after searching in parents: {memberType ?? "Does not exist"}");
+                            //Console.WriteLine($"Member Type after searching in parents: {memberType ?? "Does not exist"}");
                         }
                     }
                 }
 
                 if (baseExpr.DOT() != null)
                 {
-                    Console.WriteLine($"Base expression itself has a dot: {baseExpr.GetText()}");
+                    //Console.WriteLine($"Base expression itself has a dot: {baseExpr.GetText()}");
                     string baseBaseType = GetExpressionType(baseExpr.expression(0));
-                    Console.WriteLine($"Base Base Type: {baseBaseType}");
+                    //Console.WriteLine($"Base Base Type: {baseBaseType}");
                 }
             }
-            Console.WriteLine($"===================");
+            //Console.WriteLine($"===================");
         }
 
         private bool IsStructDefined(string structName, SimpleParser.ProgramContext program)
@@ -663,15 +663,15 @@ namespace test
         {
             if (context.ASSIGN() != null && context.expression().Length == 2)
             {
-                Console.WriteLine($"=== Assignment Analysis ===");
-                Console.WriteLine($"Full expression: {context.GetText()}");
+                //Console.WriteLine($"=== Assignment Analysis ===");
+                //Console.WriteLine($"Full expression: {context.GetText()}");
 
                 string leftType = GetExpressionType(context.expression(0));
                 string rightType = GetExpressionType(context.expression(1));
 
-                Console.WriteLine($"Left side: {context.expression(0).GetText()} -> {leftType}");
-                Console.WriteLine($"Right side: {context.expression(1).GetText()} -> {rightType}");
-                Console.WriteLine($"Compatible: {AreTypesCompatible(leftType, rightType, context)}");
+                //Console.WriteLine($"Left side: {context.expression(0).GetText()} -> {leftType}");
+                //Console.WriteLine($"Right side: {context.expression(1).GetText()} -> {rightType}");
+                //Console.WriteLine($"Compatible: {AreTypesCompatible(leftType, rightType, context)}");
 
                 // إذا كان الطرف الأيسر وصولاً إلى عضو هيكل
                 if (context.expression(0).DOT() != null)
@@ -680,30 +680,30 @@ namespace test
                     string baseType = GetExpressionType(leftExpr.expression(0));
                     string memberName = leftExpr.IDENTIFIER().GetText();
 
-                    Console.WriteLine($"Access to member: {memberName}");
-                    Console.WriteLine($"Base type: {baseType}");
-                    Console.WriteLine($"Is base type a struct?: {IsStructType(baseType)}");
+                    //Console.WriteLine($"Access to member: {memberName}");
+                    //Console.WriteLine($"Base type: {baseType}");
+                    //Console.WriteLine($"Is base type a struct?: {IsStructType(baseType)}");
 
                     if (IsStructType(baseType))
                     {
                         string structName = GetStructNameFromType(baseType);
                         SimpleParser.StructContext? structDef = FindStructDefinition(structName, context);
-                        Console.WriteLine($"Struct definition: {(structDef != null ? "Exists" : "Does not exist")}");
+                        //Console.WriteLine($"Struct definition: {(structDef != null ? "Exists" : "Does not exist")}");
 
                         if (structDef != null)
                         {
                             string memberType = GetStructMemberType(structDef, memberName);
-                            Console.WriteLine($"Member type: {memberType ?? "Does not exist"}");
+                            //Console.WriteLine($"Member type: {memberType ?? "Does not exist"}");
                         }
                     }
                 }
-                Console.WriteLine($"=== End of Assignment Analysis ===");
+                //Console.WriteLine($"=== End of Assignment Analysis ===");
             }
         }
 
         private void DebugStructInheritance(SimpleParser.StructContext structContext, string memberName)
         {
-            Console.WriteLine($"Searching for member '{memberName}' in struct '{structContext.IDENTIFIER(0)?.GetText()}'");
+            //Console.WriteLine($"Searching for member '{memberName}' in struct '{structContext.IDENTIFIER(0)?.GetText()}'");
 
             // البحث في الأعضاء المباشرين
             if (structContext.struct_members() != null)
@@ -713,7 +713,7 @@ namespace test
                         SimpleParser.VariableContext variable = memberContext.variable();
                         if (variable?.IDENTIFIER()?.GetText() == memberName)
                         {
-                            Console.WriteLine($"Found member '{memberName}' in current struct");
+                            //Console.WriteLine($"Found member '{memberName}' in current struct");
                             return;
                         }
                     }
@@ -722,10 +722,10 @@ namespace test
             if (structContext.IDENTIFIER(1) != null)
             {
                 string parentName = structContext.IDENTIFIER(1).GetText();
-                Console.WriteLine($"Searching in parent struct: '{parentName}'");
+                //Console.WriteLine($"Searching in parent struct: '{parentName}'");
             }
-            else
-                Console.WriteLine($"No parent struct");
+            //else
+                //Console.WriteLine($"No parent struct");
         }
 
         private List<Symbol> GetFunctionParameters(string functionName, SimpleParser.ExpressionContext context)
@@ -1129,7 +1129,7 @@ namespace test
                 SimpleParser.StructContext parentStruct = FindStructDefinition(parentName, structContext);
                 if (parentStruct != null)
                 {
-                    Console.WriteLine($"البحث في الهيكل الأب '{parentName}' للعضو '{memberName}'");
+                    //Console.WriteLine($"البحث في الهيكل الأب '{parentName}' للعضو '{memberName}'");
                     return GetStructMemberType(parentStruct, memberName);
                 }
             }
@@ -1160,7 +1160,7 @@ namespace test
             // التحويلات مع فقدان الدقة (تحذير)
             if (targetType == "int" && sourceType == "double")
             {
-                AddSemanticWarning($"فقدان الدقة عند تحويل {sourceType} إلى {targetType}", context);
+                AddSemanticWarning($"Loss of accuracy during converting {sourceType} to {targetType}", context);
                 return true;
             }
 
@@ -1267,7 +1267,7 @@ namespace test
                     break;
             }
 
-            Console.WriteLine($"Operation is not supported: {leftType} {op} {rightType}");
+            //Console.WriteLine($"Operation is not supported: {leftType} {op} {rightType}");
             return null;
         }
 
@@ -1275,7 +1275,7 @@ namespace test
         {
             string error = $"Semantic error at line {context.Start.Line}, column {context.start.Column}: {message}";
             semanticErrors.Add(error);
-            Console.WriteLine($"{error}");
+            //Console.WriteLine($"{error}");
         }
 
         private object SafeVisit(ParserRuleContext context)

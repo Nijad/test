@@ -21,7 +21,7 @@
         {
             scopes.Push(new Dictionary<string, Symbol>());
             scopeNames.Push(scopeName);
-            Console.WriteLine($"scope enter: {scopeName}");
+            //Console.WriteLine($"scope enter: {scopeName}");
         }
 
         public void ExitScope()
@@ -30,7 +30,7 @@
             {
                 string exitedScope = scopeNames.Pop();
                 scopes.Pop();
-                Console.WriteLine($"scope exit: {exitedScope}");
+                //Console.WriteLine($"scope exit: {exitedScope}");
             }
         }
 
@@ -38,12 +38,12 @@
         {
             if (scopes.Peek().ContainsKey(symbol.Name))
             {
-                Console.WriteLine($"worning: symbole '{symbol.Name}' is already existed in the scope '{CurrentScope}'");
+                //Console.WriteLine($"worning: symbole '{symbol.Name}' is already existed in the scope '{CurrentScope}'");
                 return false;
             }
 
             scopes.Peek()[symbol.Name] = symbol;
-            Console.WriteLine($"adding symbole: {symbol.Name} with type {symbol.DataType} in the scope {CurrentScope}");
+            //Console.WriteLine($"adding symbole: {symbol.Name} with type {symbol.DataType} in the scope {CurrentScope}");
             return true;
         }
 
@@ -54,11 +54,11 @@
             {
                 if (scope.ContainsKey(name))
                 {
-                    Console.WriteLine($"symbole '{name}' was found in current scope");
+                    //Console.WriteLine($"symbole '{name}' was found in current scope");
                     return scope[name];
                 }
             }
-            Console.WriteLine($"symbole '{name}' is not exist in the scope");
+            //Console.WriteLine($"symbole '{name}' is not exist in the scope");
             return null;
         }
 
@@ -66,34 +66,34 @@
         {
             if (scopes.Peek().ContainsKey(name))
             {
-                Console.WriteLine($"symbole '{name}' was found in current scope '{CurrentScope}'");
+                //Console.WriteLine($"symbole '{name}' was found in current scope '{CurrentScope}'");
                 return scopes.Peek()[name];
             }
-            Console.WriteLine($"symbole '{name}' is not exist in current scope '{CurrentScope}'");
+            //Console.WriteLine($"symbole '{name}' is not exist in current scope '{CurrentScope}'");
             return null;
         }
 
         public void PrintCurrentScope()
         {
-            Console.WriteLine($"=== symbole in scope '{CurrentScope}' ===");
-            foreach (Symbol symbol in scopes.Peek().Values)
-                Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");
-            Console.WriteLine("=======================");
+            //Console.WriteLine($"=== symbole in scope '{CurrentScope}' ===");
+            //foreach (Symbol symbol in scopes.Peek().Values)
+                //Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");
+            //Console.WriteLine("=======================");
         }
 
         public void PrintAllScopes()
         {
-            Console.WriteLine("=== all scopes and symbols ===");
+            //Console.WriteLine("=== all scopes and symbols ===");
             int scopeIndex = 0;
             foreach (Dictionary<string, Symbol> scope in scopes)
             {
                 string scopeName = scopeNames.ElementAt(scopeIndex);
-                Console.WriteLine($"scope: {scopeName}");
+                //Console.WriteLine($"scope: {scopeName}");
                 foreach (Symbol symbol in scope.Values)
-                    Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");
+                    //Console.WriteLine($"  {symbol.Name} : {symbol.DataType} ({symbol.Type})");
                 scopeIndex++;
             }
-            Console.WriteLine("===========================");
+            //Console.WriteLine("===========================");
         }
 
         public Symbol LookupGlobal(string name)
@@ -104,10 +104,10 @@
 
         public void PrintAllSymbols()
         {
-            Console.WriteLine("Symbols in the symbol table:");
-            foreach (Dictionary<string, Symbol> scope in scopes)
-                foreach (Symbol symbol in scope.Values)
-                    Console.WriteLine($"{symbol.Name} -> {symbol.DataType} ({symbol.Type}) in scope {symbol.Scope}");
+            //Console.WriteLine("Symbols in the symbol table:");
+            //foreach (Dictionary<string, Symbol> scope in scopes)
+                //foreach (Symbol symbol in scope.Values)
+                    //Console.WriteLine($"{symbol.Name} -> {symbol.DataType} ({symbol.Type}) in scope {symbol.Scope}");
         }
 
         public List<Symbol> GetAllSymbols()
