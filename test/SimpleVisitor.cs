@@ -13,49 +13,521 @@ namespace test
         private string currentFunctionReturnType;
         private HashSet<ParserRuleContext> visitedNodes;
 
+        private const int INT_MAX = int.MaxValue;
+        private const int INT_MIN = int.MinValue;
+        private const double DOUBLE_MAX = double.MaxValue;
+        private const double DOUBLE_MIN = double.MinValue;
+
+        private Dictionary<string, object> constantValues = new Dictionary<string, object>();
+
+        private object GetNumericValueFromExpression(SimpleParser.ExpressionContext context)
+        {
+            if (context == null) return null;
+
+            // التعامل مع التعبيرات الأحادية
+            if (context.unaryOp() != null && context.expression().Length == 1)
+            {
+                string op = context.unaryOp().GetText();
+                object innerValue = GetNumericValueFromExpression(context.expression(0));
+
+                if (innerValue == null) return null;
+
+                if (op == "-")
+                {
+                    if (innerValue is int intVal)
+                        return -intVal;
+                    else if (innerValue is long longVal)
+                        return -longVal;
+                    else if (innerValue is double doubleVal)
+                        return -doubleVal;
+                }
+                else if (op == "+")
+                {
+                    return innerValue;
+                }
+                // لا نتعامل مع ! هنا لأنه ليس قيمة رقمية
+            }
+
+            // التعامل مع الإشارات الأحادية (+/-)
+            if (context.expression().Length == 1)
+            {
+                if (context.GetChild(0) is ITerminalNode terminal)
+                {
+                    if (terminal.Symbol.Type == SimpleParser.MINUS)
+                    {
+                        object innerValue = GetNumericValueFromExpression(context.expression(0));
+                        if (innerValue != null)
+                        {
+                            try
+                            {
+                                if (innerValue is int intValue)
+                                    return -intValue;
+                                else if (innerValue is long longValue)
+                                    return -longValue;
+                                else if (innerValue is double doubleValue)
+                                    return -doubleValue;
+                            }
+                            catch (OverflowException)
+                            {
+                                return null;
+                            }
+                        }
+                    }
+                    else if (terminal.Symbol.Type == SimpleParser.PLUS)
+                    {
+                        return GetNumericValueFromExpression(context.expression(0));
+                    }
+                }
+            }
+
+            // إذا كان ثابتًا رقميًا مباشرًا
+            if (context.INTEGER() != null)
+            {
+                string text = context.INTEGER().GetText();
+                bool isNegative = false;
+
+                // التحقق من وجود إشارة سلبية في النص
+                if (text.StartsWith("-"))
+                {
+                    isNegative = true;
+                    text = text.Substring(1); // إزالة علامة الناقص
+                }
+                else if (text.StartsWith("+"))
+                {
+                    text = text.Substring(1); // إزالة علامة الزائد
+                }
+
+                try
+                {
+                    if (isNegative)
+                    {
+                        // للقيم السالبة، نتعامل معها كـ long أولاً
+                        long longVal = long.Parse(text);
+                        longVal = -longVal;
+
+                        // ثم نحاول التحويل إلى int
+                        if (longVal >= int.MinValue && longVal <= int.MaxValue)
+                            return (int)longVal;
+                        else
+                            return longVal; // إرجاع كـ long إذا كان خارج نطاق int
+                    }
+                    else
+                    {
+                        return int.Parse(text);
+                    }
+                }
+                catch (OverflowException)
+                {
+                    try
+                    {
+                        // إذا كان خارج نطاق int، حاول كـ long
+                        long longVal = long.Parse(text);
+                        if (isNegative) longVal = -longVal;
+                        return longVal;
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
+            }
+
+            if (context.REAL() != null)
+            {
+                string text = context.REAL().GetText();
+                try
+                {
+                    return double.Parse(text, System.Globalization.CultureInfo.InvariantCulture);
+                }
+                catch (OverflowException)
+                {
+                    return null;
+                }
+            }
+
+            if (context.TRUE() != null) return true;
+            if (context.FALSE() != null) return false;
+
+            // إذا كان معرفًا، ابحث في القيم الثابتة المخزنة
+            if (context.IDENTIFIER() != null && context.expression().Length == 0 && context.LPAREN() == null)
+            {
+                string varName = context.IDENTIFIER().GetText();
+                if (constantValues.ContainsKey(varName))
+                {
+                    return constantValues[varName];
+                }
+            }
+
+            return null;
+        }
+
+        private void CheckIntegerBoundary(string text, ParserRuleContext context)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            // تخطي الفحص إذا كان الرقم سالباً (سيتم فحصه في التعبير الأحادي)
+            // لأن الأعداد السالبة تأتي كـ unaryOp expression وليس INTEGER مباشر
+            return;
+            bool isNegative = false;
+            string numberText = text;
+
+            // التحقق من الإشارة
+            if (text.StartsWith("-"))
+            {
+                isNegative = true;
+                numberText = text.Substring(1);
+            }
+            else if (text.StartsWith("+"))
+            {
+                numberText = text.Substring(1);
+            }
+
+            try
+            {
+                // حاول تحويل النص إلى long للتحقق من الحدود
+                long value = long.Parse(numberText);
+                if (isNegative) value = -value;
+
+                if (value > INT_MAX)
+                {
+                    AddSemanticError($"Integer constant {value} exceeds maximum int value ({INT_MAX})", context);
+                }
+                else if (value < INT_MIN)
+                {
+                    AddSemanticError($"Integer constant {value} exceeds minimum int value ({INT_MIN})", context);
+                }
+                else if (value == INT_MIN && isNegative)
+                {
+                    // هذه حالة خاصة: -2147483648 هو الحد الأدنى لـ int
+                    // لا يجب أن يعتبر خطأ، بل تحذير
+                    AddSemanticWarning($"Using minimum int value: {value}", context);
+                }
+                else if (value == INT_MAX)
+                {
+                    AddSemanticWarning($"Using maximum int value: {value}", context);
+                }
+            }
+            catch (OverflowException)
+            {
+                AddSemanticError($"Integer constant {text} is too large for any integer type", context);
+            }
+            catch (FormatException)
+            {
+                // تجاهل أخطاء التنسيق
+            }
+        }
+
+        private void CheckIntegerLiteral(SimpleParser.ExpressionContext context)
+        {
+            if (context.INTEGER() != null)
+            {
+                if (context.parent.GetText() == $"-{context.GetText()}")
+                    return;
+                string text = context.INTEGER().GetText();
+
+                // فقط للأعداد الموجبة (الأعداد السالبة ستتم معالجتها في unaryOp)
+                try
+                {
+                    long value = long.Parse(text);
+
+                    // إذا كانت القيمة أكبر من INT_MAX، فهذا خطأ
+                    if (value > INT_MAX)
+                    {
+                        AddSemanticError($"Integer constant {value} exceeds maximum int value ({INT_MAX})", context);
+                    }
+
+                    // لا نفحص الحد الأدنى هنا لأن الأعداد السالبة تأتي كـ unaryOp
+                }
+                catch (OverflowException)
+                {
+                    AddSemanticError($"Integer constant {text} is too large for any integer type", context);
+                }
+            }
+        }
+
+        private void CheckDoubleBoundary(string text, ParserRuleContext context)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+
+            try
+            {
+                double value = double.Parse(text, System.Globalization.CultureInfo.InvariantCulture);
+
+                if (double.IsInfinity(value))
+                {
+                    if (value > 0)
+                        AddSemanticError($"Double constant {text} is positive infinity", context);
+                    else
+                        AddSemanticError($"Double constant {text} is negative infinity", context);
+                }
+                else if (double.IsNaN(value))
+                {
+                    AddSemanticError($"Double constant {text} is not a number (NaN)", context);
+                }
+                else
+                {
+                    double absValue = Math.Abs(value);
+                    if (absValue > 1e300)
+                    {
+                        AddSemanticWarning($"Double constant {text} is very large and may cause overflow", context);
+                    }
+                    else if (absValue > 0 && absValue < 1e-300)
+                    {
+                        AddSemanticWarning($"Double constant {text} is very small and may underflow to zero", context);
+                    }
+                }
+            }
+            catch (OverflowException)
+            {
+                AddSemanticError($"Double constant {text} is too large for double type", context);
+            }
+            catch (FormatException)
+            {
+                // تجاهل أخطاء التنسيق
+            }
+        }
+
+        private void TrackConstantValue(string varName, string type, SimpleParser.ExpressionContext exprContext)
+        {
+            if (exprContext == null) return;
+
+            object value = GetNumericValueFromExpression(exprContext);
+            if (value != null)
+            {
+                constantValues[varName] = value;
+            }
+        }
+
         private bool CheckDivisionByZero(string rightType, SimpleParser.ExpressionContext rightExpr, ParserRuleContext context)
         {
             if (rightExpr != null)
             {
-                try
+                // الحصول على القيمة العددية من التعبير
+                object rightVal = GetNumericValueFromExpression(rightExpr);
+
+                if (rightVal != null)
                 {
-                    if (rightType == "int" && rightExpr.INTEGER() != null)
+                    if (rightType == "int")
                     {
-                        int rightVal = int.Parse(rightExpr.INTEGER().GetText());
-                        if (rightVal == 0)
+                        if (rightVal is int intVal && intVal == 0)
+                        {
+                            AddSemanticError($"Division by zero", context);
+                            return false;
+                        }
+                        else if (rightVal is long longVal && longVal == 0)
                         {
                             AddSemanticError($"Division by zero", context);
                             return false;
                         }
                     }
-                    else if (rightType == "double" && rightExpr.REAL() != null)
+                    else if (rightType == "double")
                     {
-                        double rightVal = double.Parse(rightExpr.REAL().GetText());
-
-                        if (rightVal == 0 || rightVal >= -0.0000000001 || rightVal < 0.0000000001)
+                        if (rightVal is double doubleVal && doubleVal == 0)
                         {
-                            AddSemanticWarning($"Division by zero (or very small value)", context);
-                            return false;
-                        }
-                    }
-                    // التحقق من القيم المنطقية
-                    else if (rightType == "boolean" && (rightExpr.TRUE() != null || rightExpr.FALSE() != null))
-                    {
-                        // إذا كانت القيمة المنطقية false (تكافئ 0)
-                        if (rightExpr.FALSE() != null)
-                        {
-                            AddSemanticError($"Division by zero (boolean false)", context);
+                            AddSemanticError($"Division by zero (or very small value)", context);
                             return false;
                         }
                     }
                 }
-                catch (FormatException)
+                else
                 {
-                    // تجاهل الأخطاء في التنسيق
+                    // حتى لو لم نستطع الحصول على القيمة، نفحص إذا كان التعبير مباشرًا
+                    if (rightExpr.INTEGER() != null && rightExpr.INTEGER().GetText() == "0")
+                    {
+                        AddSemanticError($"Division by zero", context);
+                        return false;
+                    }
+                    else if (rightExpr.REAL() != null)
+                    {
+                        string realText = rightExpr.REAL().GetText();
+                        if (realText == "0.0" || realText == "0" ||
+                            realText.StartsWith("0e") || realText.StartsWith("0E"))
+                        {
+                            AddSemanticError($"Division by zero (or very small value)", context);
+                            return false;
+                        }
+                    }
                 }
             }
 
             return true;
+        }
+
+        private bool CheckNumericOverflow(string leftType, string rightType, string op,
+                                  SimpleParser.ExpressionContext leftExpr,
+                                  SimpleParser.ExpressionContext rightExpr,
+                                  ParserRuleContext context)
+        {
+            // الحصول على القيم العددية
+            object leftVal = GetNumericValueFromExpression(leftExpr);
+            object rightVal = GetNumericValueFromExpression(rightExpr);
+
+            if (leftVal == null || rightVal == null)
+                return true; // لا يمكن التحقق بدون قيم
+
+            try
+            {
+                if (leftType == "int" && rightType == "int")
+                {
+                    long leftLong = Convert.ToInt64(leftVal);
+                    long rightLong = Convert.ToInt64(rightVal);
+
+                    switch (op)
+                    {
+                        case "+":
+                            long sum = leftLong + rightLong;
+                            if (sum > INT_MAX || sum < INT_MIN)
+                            {
+                                AddSemanticError($"Integer overflow in addition: {leftLong} + {rightLong} exceeds int range", context);
+                                return false;
+                            }
+                            break;
+
+                        case "-":
+                            long diff = leftLong - rightLong;
+                            if (diff > INT_MAX || diff < INT_MIN)
+                            {
+                                AddSemanticError($"Integer overflow in subtraction: {leftLong} - {rightLong} exceeds int range", context);
+                                return false;
+                            }
+                            break;
+
+                        case "*":
+                            // تحقق دقيق لضرب الأعداد الصحيحة
+                            if (leftLong != 0 && rightLong != 0)
+                            {
+                                // حالة خاصة: -1 * INT_MIN
+                                if (leftLong == -1 && rightLong == INT_MIN)
+                                {
+                                    AddSemanticError($"Integer overflow in multiplication: {leftLong} * {rightLong} exceeds int range", context);
+                                    return false;
+                                }
+                                if (rightLong == -1 && leftLong == INT_MIN)
+                                {
+                                    AddSemanticError($"Integer overflow in multiplication: {leftLong} * {rightLong} exceeds int range", context);
+                                    return false;
+                                }
+
+                                if (leftLong > 0 && rightLong > 0 && leftLong > INT_MAX / rightLong)
+                                {
+                                    AddSemanticError($"Integer overflow in multiplication: {leftLong} * {rightLong} exceeds int range", context);
+                                    return false;
+                                }
+                                else if (leftLong > 0 && rightLong < 0 && rightLong < INT_MIN / leftLong)
+                                {
+                                    AddSemanticError($"Integer overflow in multiplication: {leftLong} * {rightLong} exceeds int range", context);
+                                    return false;
+                                }
+                                else if (leftLong < 0 && rightLong > 0 && leftLong < INT_MIN / rightLong)
+                                {
+                                    AddSemanticError($"Integer overflow in multiplication: {leftLong} * {rightLong} exceeds int range", context);
+                                    return false;
+                                }
+                                else if (leftLong < 0 && rightLong < 0 && leftLong < INT_MAX / rightLong)
+                                {
+                                    AddSemanticError($"Integer overflow in multiplication: {leftLong} * {rightLong} exceeds int range", context);
+                                    return false;
+                                }
+                            }
+                            break;
+                    }
+                }
+                else if (leftType == "double" || rightType == "double")
+                {
+                    double leftDouble = Convert.ToDouble(leftVal);
+                    double rightDouble = Convert.ToDouble(rightVal);
+
+                    switch (op)
+                    {
+                        case "+":
+                        case "-":
+                        case "*":
+                            double result = op == "+" ? leftDouble + rightDouble :
+                                           op == "-" ? leftDouble - rightDouble :
+                                           leftDouble * rightDouble;
+                            if (double.IsInfinity(result))
+                            {
+                                AddSemanticError($"Double overflow in {op} operation: {leftDouble} {op} {rightDouble} results in infinity", context);
+                                return false;
+                            }
+                            break;
+                    }
+                }
+            }
+            catch (OverflowException)
+            {
+                AddSemanticError($"Numeric overflow in operation: {leftExpr?.GetText()} {op} {rightExpr?.GetText()}", context);
+                return false;
+            }
+
+            return true;
+        }
+
+        private void CheckForMinIntValue(SimpleParser.ExpressionContext context)
+        {
+            if (context.INTEGER() != null)
+            {
+                string text = context.INTEGER().GetText();
+
+                // التحقق من القيم السلبية الكبيرة
+                if (text.StartsWith("-"))
+                {
+                    string numberPart = text.Substring(1);
+                    try
+                    {
+                        long value = long.Parse(numberPart);
+                        if (value == 2147483648) // القيمة المطلقة للحد الأدنى
+                        {
+                            // هذه هي القيمة -2147483648، وهي الحد الأدنى للـ int
+                            // لا تعتبر خطأ، ولكن قد نريد إضافة تحذير
+                            AddSemanticWarning($"Using minimum int value: {text}", context);
+                        }
+                        else if (value > 2147483648)
+                        {
+                            AddSemanticError($"Integer constant {text} exceeds minimum int value ({INT_MIN})", context);
+                        }
+                    }
+                    catch (OverflowException)
+                    {
+                        AddSemanticError($"Integer constant {text} is too large for any integer type", context);
+                    }
+                }
+            }
+        }
+
+        private void CheckUnaryMinusExpression(SimpleParser.ExpressionContext context)
+        {
+            if (context.unaryOp() != null && context.unaryOp().GetText() == "-" && context.expression().Length == 1)
+            {
+                SimpleParser.ExpressionContext innerExpr = context.expression(0);
+
+                // إذا كان المعامل عددًا صحيحًا
+                if (innerExpr.INTEGER() != null)
+                {
+                    string innerText = innerExpr.INTEGER().GetText();
+                    try
+                    {
+                        long value = long.Parse(innerText);
+                        long result = -value;
+
+                        if (result > INT_MAX)
+                        {
+                            AddSemanticError($"Integer constant {result} exceeds maximum int value ({INT_MAX})", context);
+                        }
+                        else if (result < INT_MIN)
+                        {
+                            AddSemanticError($"Integer constant {result} exceeds minimum int value ({INT_MIN})", context);
+                        }
+                        else if (result == INT_MIN)
+                        {
+                            AddSemanticWarning($"Using minimum int value: {result}", context);
+                        }
+                    }
+                    catch (OverflowException)
+                    {
+                        AddSemanticError($"Integer constant is too large", context);
+                    }
+                }
+            }
         }
 
         public SimpleVisitor(SymbolTable symbolTable, List<string> semanticErrors, List<string> semanticWarnings)
@@ -80,7 +552,7 @@ namespace test
             symbolTable.EnterScope("global");
 
             string programName = context.IDENTIFIER().GetText();
-            //Console.WriteLine($"start program: {programName}");
+            Console.WriteLine($"start program: {programName}");
 
             // المرحلة 1: جمع جميع التعريفات أولاً (الدوال، المتغيرات العالمية، الهياكل)
             foreach (SimpleParser.MemberContext? member in context.member())
@@ -457,6 +929,10 @@ namespace test
                     string exprType = GetExpressionType(context.expression());
                     exprType = NormalizeStructType(exprType, context);
 
+                    // تتبع القيم الثابتة
+                    TrackConstantValue(varName, varType, context.expression());
+
+
                     if (exprType != null && !AreTypesCompatible(varType, exprType, context))
                         AddSemanticError($"type mismatch: cannot assign {exprType} to {varType}", context);
 
@@ -474,6 +950,9 @@ namespace test
             if (context.expr_list() != null)
                 foreach (SimpleParser.ExpressionContext? expr in context.expr_list().expression())
                     Visit(expr);
+
+            // فحص التعبيرات الأحادية السالبة
+            //CheckUnaryMinusExpression(context);
 
             // استدعاء الدوال
             if (context.IDENTIFIER() != null && context.LPAREN() != null)
@@ -595,6 +1074,24 @@ namespace test
                 if (leftType == "unknown")
                     AddSemanticError($"Variable is not defined on the left-hand side", context.expression(0));
 
+                // التحقق من تجاوز الحدود في التعيين للثوابت
+                if (leftType == "int" && context.expression(1) != null)
+                {
+                    object rightVal = GetNumericValueFromExpression(context.expression(1));
+                    if (rightVal != null)
+                    {
+                        long longVal = Convert.ToInt64(rightVal);
+                        if (longVal > INT_MAX)
+                        {
+                            AddSemanticError($"Value {longVal} exceeds maximum int value ({INT_MAX}) in assignment", context);
+                        }
+                        else if (longVal < INT_MIN)
+                        {
+                            AddSemanticError($"Value {longVal} exceeds minimum int value ({INT_MIN}) in assignment", context);
+                        }
+                    }
+                }
+
                 if (!AreTypesCompatible(leftType, rightType, context))
                     AddSemanticError($"Type mismatch in assignment. Expected: {leftType}, Provided: {rightType}", context);
 
@@ -640,16 +1137,131 @@ namespace test
             }
 
             if (context.INTEGER() != null)
+            {
+                long value = long.Parse(context.GetText());
+                // التحقق من الحدود للقيمة النهائية
+                if (!context.parent.GetText().StartsWith("-"))
+                    if (value > INT_MAX)
+                    {
+                        AddSemanticError($"Integer constant {value} exceeds maximum int value ({INT_MAX})", context);
+                    }
+                    else if (value == INT_MAX)
+                    {
+                        AddSemanticWarning($"Using maximum int value: {value}", context);
+                    }
                 return "int";
+            }
 
             if (context.REAL() != null)
+            {
+                double value = double.Parse(context.GetText());
+                // التحقق من الحدود للقيمة النهائية
+                if (!context.parent.GetText().StartsWith("-"))
+                    if (value > INT_MAX)
+                    {
+                        AddSemanticError($"Integer constant {value} exceeds maximum double value ({DOUBLE_MAX})", context);
+                    }
+                    else if (value == INT_MAX)
+                    {
+                        AddSemanticWarning($"Using maximum double value: {value}", context);
+                    }
                 return "double";
+            }
 
             if (context.TRUE() != null || context.FALSE() != null)
                 return "boolean";
 
             if (context.NULL() != null)
                 return "null";
+
+            // معالجة التعبيرات الأحادية (مثل -5, +3, !true)
+            if (context.unaryOp() != null && context.expression().Length == 1)
+            {
+                string op = context.unaryOp().GetText();
+                string operandType = GetExpressionType(context.expression(0));
+
+                // زيارة المعامل أولاً
+                Visit(context.expression(0));
+
+                if (op == "-" || op == "+")
+                {
+                    // التحقق من أن المعامل رقمي
+                    if (operandType != "int" && operandType != "double")
+                    {
+                        AddSemanticError($"Unary operator '{op}' cannot be applied to type '{operandType}'", context);
+                        return "unknown";
+                    }
+
+                    // إذا كان المعامل ثابتًا، يمكننا حساب القيمة
+                    if (context.expression(0).INTEGER() != null)
+                    {
+                        string intText = context.expression(0).INTEGER().GetText();
+                        try
+                        {
+                            long value = long.Parse(intText);
+                            if (op == "-")
+                                value = -value;
+
+                            // التحقق من الحدود للقيمة النهائية
+                            if (value > INT_MAX)
+                            {
+                                AddSemanticError($"Integer constant {value} exceeds maximum int value ({INT_MAX})", context);
+                            }
+                            else if (value < INT_MIN)
+                            {
+                                AddSemanticError($"Integer constant {value} exceeds minimum int value ({INT_MIN})", context);
+                            }
+                            else if (value == INT_MIN && op == "-")
+                            {
+                                AddSemanticWarning($"Using minimum int value: {value}", context);
+                            }
+                            else if (value == INT_MAX && op == "+")
+                            {
+                                AddSemanticWarning($"Using maximum int value: {value}", context);
+                            }
+                        }
+                        catch (OverflowException)
+                        {
+                            AddSemanticError($"Integer constant is too large", context);
+                        }
+                    }
+
+                    if (context.expression(0).REAL() != null)
+                    {
+                        string realText = context.expression(0).REAL().GetText();
+                        try
+                        {
+                            double value = double.Parse(realText);
+                            if (op == "-")
+                                value = -value;
+                            // التحقق من الحدود للقيمة النهائية
+                            if (value > DOUBLE_MAX)
+                            {
+                                AddSemanticError($"Double constant {context.GetText()} exceeds maximum double value ({DOUBLE_MAX})", context);
+                            }
+                            else if (value < DOUBLE_MIN)
+                            {
+                                AddSemanticError($"Double constant {context.GetText()} exceeds minimum double value ({DOUBLE_MIN})", context);
+                            }
+                        }
+                        catch (OverflowException)
+                        {
+                            AddSemanticError($"Double constant is too large", context);
+                        }
+                    }
+
+                    return operandType; // نفس نوع المعامل
+                }
+                else if (op == "!")
+                {
+                    if (operandType != "boolean")
+                    {
+                        AddSemanticError($"Logical NOT operator cannot be applied to type '{operandType}'", context);
+                        return "unknown";
+                    }
+                    return "boolean";
+                }
+            }
 
             // معالجة المعرفات البسيطة
             if (context.IDENTIFIER() != null && context.expression().Length == 0)
@@ -672,7 +1284,7 @@ namespace test
                 }
             }
 
-            if (context.IDENTIFIER != null && context.ASSIGN != null && context.expression().Length == 1)
+            if (context.IDENTIFIER() != null && context.ASSIGN() != null && context.expression().Length == 1)
             {
                 // تعيين قيمة لمتغير
                 string varName = context.IDENTIFIER().GetText();
@@ -701,13 +1313,24 @@ namespace test
                 string op = context.binaryOp().GetText();
 
                 // زيارة كلا الطرفين
-                //Visit(context.expression(0));
-                //Visit(context.expression(1));
+                Visit(context.expression(0));
+                Visit(context.expression(1));
 
+                // التحقق من القسمة على صفر
                 if ((op == "/" || op == "%") && !CheckDivisionByZero(rightType, context.expression(1), context))
                 {
                     return "unknown";
                 }
+
+                // التحقق من تجاوز الحدود للعمليات الحسابية
+                if (op == "+" || op == "-" || op == "*")
+                {
+                    if (!CheckNumericOverflow(leftType, rightType, op, context.expression(0), context.expression(1), context))
+                    {
+                        return "unknown";
+                    }
+                }
+
                 if (!AreTypesCompatible(leftType, rightType, context))
                     AddSemanticError($"The process '{op}' cannot be applied to two incompatible types : '{leftType}' and '{rightType}'", context);
                 string resultType = GetBinaryOperationResultType(leftType, rightType, op);
@@ -1306,7 +1929,7 @@ namespace test
                 case "-":
                 case "*":
                 case "/":
-                    
+
                     return (leftType == "double" || rightType == "double") ? "double" : "int";
                 case "%": // إضافة دعم لعامل الباقي
                     return "int"; // الباقي دائماً int

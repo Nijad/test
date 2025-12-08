@@ -66,6 +66,7 @@ namespace test
                     Console.WriteLine("Semantic analysis was done successfully!");
                 else
                 {
+                    Console.WriteLine();
                     Console.WriteLine("Semantic Warnings:");
                     foreach (string warning in semanticWarnings)
                         Console.WriteLine(warning);
