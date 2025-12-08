@@ -13,6 +13,51 @@ namespace test
         private string currentFunctionReturnType;
         private HashSet<ParserRuleContext> visitedNodes;
 
+        private bool CheckDivisionByZero(string rightType, SimpleParser.ExpressionContext rightExpr, ParserRuleContext context)
+        {
+            if (rightExpr != null)
+            {
+                try
+                {
+                    if (rightType == "int" && rightExpr.INTEGER() != null)
+                    {
+                        int rightVal = int.Parse(rightExpr.INTEGER().GetText());
+                        if (rightVal == 0)
+                        {
+                            AddSemanticError($"Division by zero", context);
+                            return false;
+                        }
+                    }
+                    else if (rightType == "double" && rightExpr.REAL() != null)
+                    {
+                        double rightVal = double.Parse(rightExpr.REAL().GetText());
+
+                        if (rightVal == 0.0 || rightVal >= -0.0000000001 || rightVal < 0.0000000001)
+                        {
+                            AddSemanticWarning($"Division by zero (or very small value)", context);
+                            return false;
+                        }
+                    }
+                    // التحقق من القيم المنطقية
+                    else if (rightType == "boolean" && (rightExpr.TRUE() != null || rightExpr.FALSE() != null))
+                    {
+                        // إذا كانت القيمة المنطقية false (تكافئ 0)
+                        if (rightExpr.FALSE() != null)
+                        {
+                            AddSemanticError($"Division by zero (boolean false)", context);
+                            return false;
+                        }
+                    }
+                }
+                catch (FormatException)
+                {
+                    // تجاهل الأخطاء في التنسيق
+                }
+            }
+
+            return true;
+        }
+
         public SimpleVisitor(SymbolTable symbolTable, List<string> semanticErrors, List<string> semanticWarnings)
         {
             this.symbolTable = symbolTable;
@@ -110,7 +155,7 @@ namespace test
                 if (!IsStructDefined(parentName, programContext))
                     AddSemanticError($"Struct parent '{parentName}' is not declared", context);
                 //else
-                    //Console.WriteLine($"Struct '{structName}' inherits from '{parentName}'");
+                //Console.WriteLine($"Struct '{structName}' inherits from '{parentName}'");
             }
             // إنشاء رمز الهيكل
             Symbol structSymbol = new Symbol(
@@ -634,6 +679,10 @@ namespace test
                 Visit(context.expression(0));
                 Visit(context.expression(1));
 
+                if ((op == "/" || op == "%") && !CheckDivisionByZero(rightType, context.expression(1), context))
+                {
+                    return "unknown";
+                }
                 string resultType = GetBinaryOperationResultType(leftType, rightType, op);
                 if (resultType != null)
                     return resultType;
@@ -641,16 +690,6 @@ namespace test
                 return "unknown";
             }
 
-            if (context.ASSIGN() != null && context.expression().Length == 2)
-            {
-                string leftType = GetExpressionType(context.expression(0));
-                string rightType = GetExpressionType(context.expression(1));
-
-                if (leftType != null && rightType != null && !AreTypesCompatible(leftType, rightType, context))
-                    AddSemanticError($"type mismatch: {leftType} and {rightType}", context);
-
-                return leftType;
-            }
 
             if (context.INCREMENT() != null || context.DECREMENT() != null)
                 return VisitIncrementDecrementExpression(context);
@@ -725,7 +764,7 @@ namespace test
                 //Console.WriteLine($"Searching in parent struct: '{parentName}'");
             }
             //else
-                //Console.WriteLine($"No parent struct");
+            //Console.WriteLine($"No parent struct");
         }
 
         private List<Symbol> GetFunctionParameters(string functionName, SimpleParser.ExpressionContext context)
