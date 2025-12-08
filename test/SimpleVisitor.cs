@@ -32,7 +32,7 @@ namespace test
                     {
                         double rightVal = double.Parse(rightExpr.REAL().GetText());
 
-                        if (rightVal == 0.0 || rightVal >= -0.0000000001 || rightVal < 0.0000000001)
+                        if (rightVal == 0 || rightVal >= -0.0000000001 || rightVal < 0.0000000001)
                         {
                             AddSemanticWarning($"Division by zero (or very small value)", context);
                             return false;
@@ -470,7 +470,7 @@ namespace test
         public override object VisitExpression([NotNull] SimpleParser.ExpressionContext context)
         {
             // تفعيل التصحيح للتعيينات
-            DebugAssignment(context);
+            //DebugAssignment(context);
             if (context.expr_list() != null)
                 foreach (SimpleParser.ExpressionContext? expr in context.expr_list().expression())
                     Visit(expr);
@@ -658,13 +658,21 @@ namespace test
                 Symbol symbol = symbolTable.Lookup(varName);
 
                 if (symbol != null)
-                    return symbol.DataType;
-
-                AddSemanticError($"Identifier '{varName}' is not declared", context);
-                return null;
+                    if (symbol.Type == "function")
+                    {
+                        if (context.LPAREN() == null)
+                            AddSemanticError($"'{varName}' is a function and must be called with parentheses", context);
+                    }
+                    else
+                        return symbol.DataType;
+                else
+                {
+                    AddSemanticError($"Identifier '{varName}' is not declared", context);
+                    return null;
+                }
             }
 
-            if(context.IDENTIFIER != null && context.ASSIGN != null && context.expression().Length == 1)
+            if (context.IDENTIFIER != null && context.ASSIGN != null && context.expression().Length == 1)
             {
                 // تعيين قيمة لمتغير
                 string varName = context.IDENTIFIER().GetText();
@@ -693,13 +701,15 @@ namespace test
                 string op = context.binaryOp().GetText();
 
                 // زيارة كلا الطرفين
-                Visit(context.expression(0));
-                Visit(context.expression(1));
+                //Visit(context.expression(0));
+                //Visit(context.expression(1));
 
                 if ((op == "/" || op == "%") && !CheckDivisionByZero(rightType, context.expression(1), context))
                 {
                     return "unknown";
                 }
+                if (!AreTypesCompatible(leftType, rightType, context))
+                    AddSemanticError($"The process '{op}' cannot be applied to two incompatible types : '{leftType}' and '{rightType}'", context);
                 string resultType = GetBinaryOperationResultType(leftType, rightType, op);
                 if (resultType != null)
                     return resultType;
@@ -1133,6 +1143,8 @@ namespace test
                 // إرجاع الاسم بدون بادئة
                 if (structDef != null)
                     return typeName;
+                else
+                    AddSemanticError($"Type '{typeName}' is not declared!", context);
             }
 
             return typeName;
@@ -1164,7 +1176,7 @@ namespace test
         // الحصول على نوع عضو الهيكل، مع دعم الوراثة
         private string GetStructMemberType(SimpleParser.StructContext structContext, string memberName)
         {
-            DebugStructInheritance(structContext, memberName);
+            //DebugStructInheritance(structContext, memberName);
             // التحقق من الأعضاء المباشرين أولاً
             if (structContext?.struct_members() == null)
                 return null;
@@ -1195,8 +1207,6 @@ namespace test
 
         private bool AreTypesCompatible(string targetType, string sourceType, ParserRuleContext context)
         {
-            if (targetType == "unknown" || sourceType == "unknown")
-                return true;
 
             // إذا كانا نفس النوع
             if (targetType == sourceType)
@@ -1236,7 +1246,10 @@ namespace test
                 if (IsSourceInheritsFromTarget(sourceStruct, targetStruct, context))
                     return true;
             }
-
+            if (targetType == "unknown" || sourceType == "unknown")
+                return false;
+            if (targetType == "null" || sourceType == "null")
+                return false;
             return false;
         }
 
@@ -1293,13 +1306,10 @@ namespace test
                 case "-":
                 case "*":
                 case "/":
-                    if ((leftType == "int" || leftType == "double") && (rightType == "int" || rightType == "double"))
-                        return (leftType == "double" || rightType == "double") ? "double" : "int";
-                    break;
+                    
+                    return (leftType == "double" || rightType == "double") ? "double" : "int";
                 case "%": // إضافة دعم لعامل الباقي
-                    if ((leftType == "int" || leftType == "double") && (rightType == "int" || rightType == "double"))
-                        return "int"; // الباقي دائماً int
-                    break;
+                    return "int"; // الباقي دائماً int
                 case "&&":
                 case "||":
                     if (leftType == "boolean" && rightType == "boolean")
@@ -1315,10 +1325,7 @@ namespace test
                     if (leftType == rightType)
                         return "boolean";
                     // السماح بالمقارنة بين الأنواع الرقمية
-                    else if ((leftType == "int" || leftType == "double") && (rightType == "int" || rightType == "double"))
-                        return "boolean";
-                    // السماح بالمقارنة بين القيم المنطقية
-                    else if (leftType == "boolean" && rightType == "boolean")
+                    if ((leftType == "int" || leftType == "double") && (rightType == "int" || rightType == "double"))
                         return "boolean";
                     break;
             }
