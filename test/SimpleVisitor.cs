@@ -161,131 +161,6 @@ namespace test
             return null;
         }
 
-        private void CheckIntegerBoundary(string text, ParserRuleContext context)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-            // تخطي الفحص إذا كان الرقم سالباً (سيتم فحصه في التعبير الأحادي)
-            // لأن الأعداد السالبة تأتي كـ unaryOp expression وليس INTEGER مباشر
-            return;
-            bool isNegative = false;
-            string numberText = text;
-
-            // التحقق من الإشارة
-            if (text.StartsWith("-"))
-            {
-                isNegative = true;
-                numberText = text.Substring(1);
-            }
-            else if (text.StartsWith("+"))
-            {
-                numberText = text.Substring(1);
-            }
-
-            try
-            {
-                // حاول تحويل النص إلى long للتحقق من الحدود
-                long value = long.Parse(numberText);
-                if (isNegative) value = -value;
-
-                if (value > INT_MAX)
-                {
-                    AddSemanticError($"Integer constant {value} exceeds maximum int value ({INT_MAX})", context);
-                }
-                else if (value < INT_MIN)
-                {
-                    AddSemanticError($"Integer constant {value} exceeds minimum int value ({INT_MIN})", context);
-                }
-                else if (value == INT_MIN && isNegative)
-                {
-                    // هذه حالة خاصة: -2147483648 هو الحد الأدنى لـ int
-                    // لا يجب أن يعتبر خطأ، بل تحذير
-                    AddSemanticWarning($"Using minimum int value: {value}", context);
-                }
-                else if (value == INT_MAX)
-                {
-                    AddSemanticWarning($"Using maximum int value: {value}", context);
-                }
-            }
-            catch (OverflowException)
-            {
-                AddSemanticError($"Integer constant {text} is too large for any integer type", context);
-            }
-            catch (FormatException)
-            {
-                // تجاهل أخطاء التنسيق
-            }
-        }
-
-        private void CheckIntegerLiteral(SimpleParser.ExpressionContext context)
-        {
-            if (context.INTEGER() != null)
-            {
-                if (context.parent.GetText() == $"-{context.GetText()}")
-                    return;
-                string text = context.INTEGER().GetText();
-
-                // فقط للأعداد الموجبة (الأعداد السالبة ستتم معالجتها في unaryOp)
-                try
-                {
-                    long value = long.Parse(text);
-
-                    // إذا كانت القيمة أكبر من INT_MAX، فهذا خطأ
-                    if (value > INT_MAX)
-                    {
-                        AddSemanticError($"Integer constant {value} exceeds maximum int value ({INT_MAX})", context);
-                    }
-
-                    // لا نفحص الحد الأدنى هنا لأن الأعداد السالبة تأتي كـ unaryOp
-                }
-                catch (OverflowException)
-                {
-                    AddSemanticError($"Integer constant {text} is too large for any integer type", context);
-                }
-            }
-        }
-
-        private void CheckDoubleBoundary(string text, ParserRuleContext context)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-
-            try
-            {
-                double value = double.Parse(text, System.Globalization.CultureInfo.InvariantCulture);
-
-                if (double.IsInfinity(value))
-                {
-                    if (value > 0)
-                        AddSemanticError($"Double constant {text} is positive infinity", context);
-                    else
-                        AddSemanticError($"Double constant {text} is negative infinity", context);
-                }
-                else if (double.IsNaN(value))
-                {
-                    AddSemanticError($"Double constant {text} is not a number (NaN)", context);
-                }
-                else
-                {
-                    double absValue = Math.Abs(value);
-                    if (absValue > 1e300)
-                    {
-                        AddSemanticWarning($"Double constant {text} is very large and may cause overflow", context);
-                    }
-                    else if (absValue > 0 && absValue < 1e-300)
-                    {
-                        AddSemanticWarning($"Double constant {text} is very small and may underflow to zero", context);
-                    }
-                }
-            }
-            catch (OverflowException)
-            {
-                AddSemanticError($"Double constant {text} is too large for double type", context);
-            }
-            catch (FormatException)
-            {
-                // تجاهل أخطاء التنسيق
-            }
-        }
-
         private void TrackConstantValue(string varName, string type, SimpleParser.ExpressionContext exprContext)
         {
             if (exprContext == null) return;
@@ -462,74 +337,6 @@ namespace test
             return true;
         }
 
-        private void CheckForMinIntValue(SimpleParser.ExpressionContext context)
-        {
-            if (context.INTEGER() != null)
-            {
-                string text = context.INTEGER().GetText();
-
-                // التحقق من القيم السلبية الكبيرة
-                if (text.StartsWith("-"))
-                {
-                    string numberPart = text.Substring(1);
-                    try
-                    {
-                        long value = long.Parse(numberPart);
-                        if (value == 2147483648) // القيمة المطلقة للحد الأدنى
-                        {
-                            // هذه هي القيمة -2147483648، وهي الحد الأدنى للـ int
-                            // لا تعتبر خطأ، ولكن قد نريد إضافة تحذير
-                            AddSemanticWarning($"Using minimum int value: {text}", context);
-                        }
-                        else if (value > 2147483648)
-                        {
-                            AddSemanticError($"Integer constant {text} exceeds minimum int value ({INT_MIN})", context);
-                        }
-                    }
-                    catch (OverflowException)
-                    {
-                        AddSemanticError($"Integer constant {text} is too large for any integer type", context);
-                    }
-                }
-            }
-        }
-
-        private void CheckUnaryMinusExpression(SimpleParser.ExpressionContext context)
-        {
-            if (context.unaryOp() != null && context.unaryOp().GetText() == "-" && context.expression().Length == 1)
-            {
-                SimpleParser.ExpressionContext innerExpr = context.expression(0);
-
-                // إذا كان المعامل عددًا صحيحًا
-                if (innerExpr.INTEGER() != null)
-                {
-                    string innerText = innerExpr.INTEGER().GetText();
-                    try
-                    {
-                        long value = long.Parse(innerText);
-                        long result = -value;
-
-                        if (result > INT_MAX)
-                        {
-                            AddSemanticError($"Integer constant {result} exceeds maximum int value ({INT_MAX})", context);
-                        }
-                        else if (result < INT_MIN)
-                        {
-                            AddSemanticError($"Integer constant {result} exceeds minimum int value ({INT_MIN})", context);
-                        }
-                        else if (result == INT_MIN)
-                        {
-                            AddSemanticWarning($"Using minimum int value: {result}", context);
-                        }
-                    }
-                    catch (OverflowException)
-                    {
-                        AddSemanticError($"Integer constant is too large", context);
-                    }
-                }
-            }
-        }
-
         public SimpleVisitor(SymbolTable symbolTable, List<string> semanticErrors, List<string> semanticWarnings)
         {
             this.symbolTable = symbolTable;
@@ -667,52 +474,6 @@ namespace test
             }
 
             return members;
-        }
-
-        private void DebugStructAccess(SimpleParser.ExpressionContext context)
-        {
-            //Console.WriteLine($"=== Access to Structs ===");
-            //Console.WriteLine($"Expression: {context.GetText()}");
-
-            if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null)
-            {
-                SimpleParser.ExpressionContext baseExpr = context.expression(0);
-                string baseType = GetExpressionType(baseExpr);
-                string memberName = context.IDENTIFIER().GetText();
-
-                //Console.WriteLine($"Base Type: {baseType}");
-                //Console.WriteLine($"Member Name: {memberName}");
-                //Console.WriteLine($"Is Base Type Struct?: {IsStructType(baseType)}");
-
-                if (IsStructType(baseType))
-                {
-                    string structName = GetStructNameFromType(baseType);
-                    //Console.WriteLine($"Struct Name: {structName}");
-
-                    SimpleParser.StructContext? structDef = FindStructDefinition(structName, context);
-                    //Console.WriteLine($"Struct Definition: {(structDef != null ? "Exists" : "Does not exist")}");
-
-                    if (structDef != null)
-                    {
-                        string memberType = GetStructMemberType(structDef, memberName);
-                        //Console.WriteLine($"Member Type: {memberType ?? "Does not exist"}");
-
-                        if (memberType == null)
-                        {
-                            memberType = FindMemberInParentStructs(structDef, memberName, context);
-                            //Console.WriteLine($"Member Type after searching in parents: {memberType ?? "Does not exist"}");
-                        }
-                    }
-                }
-
-                if (baseExpr.DOT() != null)
-                {
-                    //Console.WriteLine($"Base expression itself has a dot: {baseExpr.GetText()}");
-                    string baseBaseType = GetExpressionType(baseExpr.expression(0));
-                    //Console.WriteLine($"Base Base Type: {baseBaseType}");
-                }
-            }
-            //Console.WriteLine($"===================");
         }
 
         private bool IsStructDefined(string structName, SimpleParser.ProgramContext program)
@@ -945,14 +706,9 @@ namespace test
 
         public override object VisitExpression([NotNull] SimpleParser.ExpressionContext context)
         {
-            // تفعيل التصحيح للتعيينات
-            //DebugAssignment(context);
             if (context.expr_list() != null)
                 foreach (SimpleParser.ExpressionContext? expr in context.expr_list().expression())
                     Visit(expr);
-
-            // فحص التعبيرات الأحادية السالبة
-            //CheckUnaryMinusExpression(context);
 
             // استدعاء الدوال
             if (context.IDENTIFIER() != null && context.LPAREN() != null)
@@ -1348,75 +1104,6 @@ namespace test
             return base.VisitExpression(context);
         }
 
-        private void DebugAssignment(SimpleParser.ExpressionContext context)
-        {
-            if (context.ASSIGN() != null && context.expression().Length == 2)
-            {
-                //Console.WriteLine($"=== Assignment Analysis ===");
-                //Console.WriteLine($"Full expression: {context.GetText()}");
-
-                string leftType = GetExpressionType(context.expression(0));
-                string rightType = GetExpressionType(context.expression(1));
-
-                //Console.WriteLine($"Left side: {context.expression(0).GetText()} -> {leftType}");
-                //Console.WriteLine($"Right side: {context.expression(1).GetText()} -> {rightType}");
-                //Console.WriteLine($"Compatible: {AreTypesCompatible(leftType, rightType, context)}");
-
-                // إذا كان الطرف الأيسر وصولاً إلى عضو هيكل
-                if (context.expression(0).DOT() != null)
-                {
-                    SimpleParser.ExpressionContext leftExpr = context.expression(0);
-                    string baseType = GetExpressionType(leftExpr.expression(0));
-                    string memberName = leftExpr.IDENTIFIER().GetText();
-
-                    //Console.WriteLine($"Access to member: {memberName}");
-                    //Console.WriteLine($"Base type: {baseType}");
-                    //Console.WriteLine($"Is base type a struct?: {IsStructType(baseType)}");
-
-                    if (IsStructType(baseType))
-                    {
-                        string structName = GetStructNameFromType(baseType);
-                        SimpleParser.StructContext? structDef = FindStructDefinition(structName, context);
-                        //Console.WriteLine($"Struct definition: {(structDef != null ? "Exists" : "Does not exist")}");
-
-                        if (structDef != null)
-                        {
-                            string memberType = GetStructMemberType(structDef, memberName);
-                            //Console.WriteLine($"Member type: {memberType ?? "Does not exist"}");
-                        }
-                    }
-                }
-                //Console.WriteLine($"=== End of Assignment Analysis ===");
-            }
-        }
-
-        private void DebugStructInheritance(SimpleParser.StructContext structContext, string memberName)
-        {
-            //Console.WriteLine($"Searching for member '{memberName}' in struct '{structContext.IDENTIFIER(0)?.GetText()}'");
-
-            // البحث في الأعضاء المباشرين
-            if (structContext.struct_members() != null)
-                foreach (IParseTree? child in structContext.struct_members().children)
-                    if (child is SimpleParser.Struct_memberContext memberContext)
-                    {
-                        SimpleParser.VariableContext variable = memberContext.variable();
-                        if (variable?.IDENTIFIER()?.GetText() == memberName)
-                        {
-                            //Console.WriteLine($"Found member '{memberName}' in current struct");
-                            return;
-                        }
-                    }
-
-            // البحث في الهيكل الأب
-            if (structContext.IDENTIFIER(1) != null)
-            {
-                string parentName = structContext.IDENTIFIER(1).GetText();
-                //Console.WriteLine($"Searching in parent struct: '{parentName}'");
-            }
-            //else
-            //Console.WriteLine($"No parent struct");
-        }
-
         private List<Symbol> GetFunctionParameters(string functionName, SimpleParser.ExpressionContext context)
         {
             List<Symbol> parameters = new List<Symbol>();
@@ -1533,9 +1220,6 @@ namespace test
             if (context.expression() != null && context.expression().Length > 0)
             {
                 SimpleParser.ExpressionContext expression = context.expression(0);
-
-                // تفعيل نظام التصحيح للهياكل
-                DebugStructAccess(expression);
 
                 // زيارة التعبير أولاً
                 Visit(expression);
@@ -1799,7 +1483,6 @@ namespace test
         // الحصول على نوع عضو الهيكل، مع دعم الوراثة
         private string GetStructMemberType(SimpleParser.StructContext structContext, string memberName)
         {
-            //DebugStructInheritance(structContext, memberName);
             // التحقق من الأعضاء المباشرين أولاً
             if (structContext?.struct_members() == null)
                 return null;
