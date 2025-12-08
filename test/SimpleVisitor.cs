@@ -664,6 +664,23 @@ namespace test
                 return null;
             }
 
+            if(context.IDENTIFIER != null && context.ASSIGN != null && context.expression().Length == 1)
+            {
+                // تعيين قيمة لمتغير
+                string varName = context.IDENTIFIER().GetText();
+                Symbol symbol = symbolTable.Lookup(varName);
+                if (symbol == null)
+                {
+                    AddSemanticError($"Identifier '{varName}' is not declared", context);
+                    return null;
+                }
+                string rightType = GetExpressionType(context.expression(0));
+                Visit(context.expression(0));
+                if (!AreTypesCompatible(symbol.DataType, rightType, context))
+                    AddSemanticError($"Type mismatch in assignment. Expected: {symbol.DataType}, Provided: {rightType}", context);
+                return symbol.DataType;
+            }
+
             // تعبيرات أحادية
             if (context.expression().Length == 1 && context.ASSIGN() == null)
                 return Visit(context.expression(0));
