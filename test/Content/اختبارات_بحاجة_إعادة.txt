@@ -25,6 +25,20 @@ program InvalidOperations
     }
 }
 
+program ReturnTypeMismatch
+{
+    int getValue() {
+        double d = 3.14;
+        return d;  // خطأ دلالي: يجب إرجاع int لا double
+    }
+
+    void noReturn() {
+        int x = 5;
+        // خطأ دلالي: دالة void لا يمكنها إرجاع قيمة
+        return x;
+    }
+}
+
 program OutOfScope
 {
     void outer() {
@@ -37,6 +51,17 @@ program OutOfScope
 
         y = 20;  // خطأ دلالي: y خارج النطاق (محددة داخل if)
     }
+}
+
+program NullOperations
+{
+    struct Point { int x; int y; }
+
+void test()
+{
+    Point p = null;
+    p.x = 5;  // خطأ دلالي: محاولة الوصول لعضو في null
+}
 }
 
 program DivisionByZero
@@ -75,16 +100,16 @@ program UninitializedVariable
 program StaticMembers
 {
     struct MathConstants
-    {
-        static double PI = 3.14159;
-        static double E = 2.71828;
-    }
+{
+    static double PI = 3.14159;
+    static double E = 2.71828;
+}
 
-    void test()
-    {
-        double area = MathConstants.PI * 5 * 5;  // صحيح
+void test()
+{
+    double area = MathConstants.PI * 5 * 5;  // صحيح
 
-        // خطأ: محاولة تعيين قيمة لعضو ثابت من غير تعريف ثابت
-        MathConstants.PI = 3.14;
-    }
+    // خطأ: محاولة تعيين قيمة لعضو ثابت من غير تعريف ثابت
+    MathConstants.PI = 3.14;
+}
 }

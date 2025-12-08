@@ -321,7 +321,9 @@ namespace test
                                            leftDouble * rightDouble;
                             if (double.IsInfinity(result))
                             {
-                                AddSemanticError($"Double overflow in {op} operation: {leftDouble} {op} {rightDouble} results in infinity", context);
+                                string left = double.IsInfinity(leftDouble) ? "infinity" : leftDouble.ToString();
+                                string right = double.IsInfinity(rightDouble) ? "infinity" : rightDouble.ToString();
+                                AddSemanticError($"Double overflow in {op} operation: {left} {op} {right} results in infinity", context);
                                 return false;
                             }
                             break;
@@ -526,6 +528,9 @@ namespace test
             // التحقق من إرجاع القيمة
             if (returnType != "void" && !CheckAllPathsReturn(context))
                 AddSemanticError($"Function '{functionName}' does not returne value in all paths", context);
+
+            if(returnType == "void" && CheckAllPathsReturn(context))
+                AddSemanticError($"Function '{functionName}' has return statements but its return type is void", context);
 
             symbolTable.ExitScope();
             currentFunctionReturnType = null;
@@ -913,13 +918,13 @@ namespace test
                 double value = double.Parse(context.GetText());
                 // التحقق من الحدود للقيمة النهائية
                 if (!context.parent.GetText().StartsWith("-"))
-                    if (value > INT_MAX)
+                    if (value > DOUBLE_MAX)
                     {
-                        AddSemanticError($"Integer constant {value} exceeds maximum double value ({DOUBLE_MAX})", context);
+                        AddSemanticError($"Double constant {context.GetText()} exceeds maximum double value ({DOUBLE_MAX})", context);
                     }
-                    else if (value == INT_MAX)
+                    else if (value == DOUBLE_MAX)
                     {
-                        AddSemanticWarning($"Using maximum double value: {value}", context);
+                        AddSemanticWarning($"Using maximum double value: {context.GetText()}", context);
                     }
                 return "double";
             }
