@@ -1,4 +1,7 @@
-﻿using Antlr4.Runtime.Tree;
+﻿// هذا الملف يبني شجرة البنية المجردة (AST) من شجرة ANTLR
+// التعليقات توضح أنه وسيط بين المحلل اللغوي وزيارات الشجرة الأخرى
+
+using Antlr4.Runtime.Tree;
 using test.Content;
 using static test.Content.SimpleParser;
 

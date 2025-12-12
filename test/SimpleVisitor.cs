@@ -529,7 +529,7 @@ namespace test
             if (returnType != "void" && !CheckAllPathsReturn(context))
                 AddSemanticError($"Function '{functionName}' does not returne value in all paths", context);
 
-            if(returnType == "void" && CheckAllPathsReturn(context))
+            if (returnType == "void" && CheckAllPathsReturn(context))
                 AddSemanticError($"Function '{functionName}' has return statements but its return type is void", context);
 
             symbolTable.ExitScope();
@@ -859,7 +859,7 @@ namespace test
                 return leftType;
             }
 
-            // معالجة الوصول إلى أعضاء الهياكل (قراءة)
+            // معالجة access إلى أعضاء الهياكل (قراءة)
             if (context.DOT() != null && context.expression().Length == 1 && context.IDENTIFIER() != null && context.ASSIGN() == null)
             {
                 // زيارة التعبير الأساسي أولاً
@@ -1030,19 +1030,17 @@ namespace test
                 string varName = context.IDENTIFIER().GetText();
                 Symbol symbol = symbolTable.Lookup(varName);
 
-                if (symbol != null)
-                    if (symbol.Type == "function")
-                    {
-                        if (context.LPAREN() == null)
-                            AddSemanticError($"'{varName}' is a function and must be called with parentheses", context);
-                    }
-                    else
-                        return symbol.DataType;
-                else
+                if (symbol == null)
                 {
                     AddSemanticError($"Identifier '{varName}' is not declared", context);
                     return null;
                 }
+
+                if (symbol.Type != "function")
+                    return symbol.DataType;
+
+                if (context.LPAREN() == null)
+                    AddSemanticError($"'{varName}' is a function and must be called with parentheses", context);
             }
 
             if (context.IDENTIFIER() != null && context.ASSIGN() != null && context.expression().Length == 1)
@@ -1779,6 +1777,100 @@ namespace test
             }
 
             return isIncrement ? "int" : "int"; // الناتج دائماً int
+        }
+
+        public override object VisitStruct([NotNull] SimpleParser.StructContext context)
+        {
+            // Build StructLayout for this struct (including inheritance)
+            string structName = context.IDENTIFIER(0).GetText();
+            StructLayout layout = new StructLayout();
+
+            int cursor = 0;
+            int maxAlign = 1;
+
+            // Inheritance: copy parent layout first
+            if (context.IDENTIFIER(1) != null)
+            {
+                string parentName = context.IDENTIFIER(1).GetText();
+                var parentLayout = symbolTable.GetStructLayout(parentName);
+                if (parentLayout == null)
+                {
+                    AddSemanticError($"Struct parent '{parentName}' is not declared", context);
+                }
+                else
+                {
+                    // copy parent's members and start after parent's size
+                    foreach (var kv in parentLayout.MemberOffsets)
+                        layout.MemberOffsets[kv.Key] = kv.Value;
+                    foreach (var kv in parentLayout.MemberTypes)
+                        layout.MemberTypes[kv.Key] = kv.Value;
+                    cursor = parentLayout.Size;
+                    maxAlign = Math.Max(maxAlign, Math.Min(8, parentLayout.Size == 0 ? 1 : 8));
+                }
+            }
+
+            // Iterate over members and compute offsets
+            if (context.struct_members() != null)
+            {
+                foreach (IParseTree child in context.struct_members().children)
+                {
+                    if (child is SimpleParser.Struct_memberContext member)
+                    {
+                        bool isStatic = member.STATIC() != null;
+                        string type = member.type().GetText();
+                        string name = member.variable().IDENTIFIER().GetText();
+
+                        if (isStatic)
+                        {
+                            // register as global/static symbol
+                            Symbol s = new Symbol(name, "static", type, member.Start.Line, member.Start.Column, "global", true);
+                            if (!symbolTable.AddSymbol(s))
+                                AddSemanticError($"Static member '{name}' in struct '{structName}' conflicts with existing symbol", member);
+                            // static storage handled by CodeGenerator
+                            continue;
+                        }
+
+                        // instance member: determine field size
+                        int fieldSize = 0;
+                        string normalized = type;
+                        if (type == "int") fieldSize = 4;
+                        else if (type == "double") fieldSize = 8;
+                        else if (type == "boolean" || type == "bool") fieldSize = 1;
+                        else
+                        {
+                            // struct type
+                            normalized = NormalizeStructType(type, member);
+                            if (symbolTable.IsStructType(normalized))
+                                fieldSize = symbolTable.GetStructSize(normalized);
+                            else
+                            {
+                                AddSemanticError($"Unknown member type '{type}' in struct '{structName}'", member);
+                                fieldSize = 4;
+                            }
+                        }
+
+                        int align = Math.Min(fieldSize, 8);
+                        if (align <= 0) align = 1;
+
+                        int padding = (align - (cursor % align)) % align;
+                        cursor += padding;
+
+                        layout.MemberOffsets[name] = cursor;
+                        layout.MemberTypes[name] = normalized;
+
+                        cursor += fieldSize;
+                        if (align > maxAlign) maxAlign = align;
+                    }
+                }
+            }
+
+            // Final struct size aligned to maxAlign (natural alignment)
+            if (maxAlign <= 0) maxAlign = 1;
+            int totalSize = ((cursor + maxAlign - 1) / maxAlign) * maxAlign;
+            layout.Size = totalSize;
+
+            symbolTable.AddStructLayout(structName, layout);
+            return null;
         }
     }
 }

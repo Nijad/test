@@ -1,4 +1,8 @@
-﻿using Antlr4.Runtime;
+﻿// هذا الملف يحتوي على مستمع للأخطاء (ErrorListener) خاص بمولد التحليل (ANTLR)
+// التعليقات بالعربية توضح أن هذا المكون يقوم بالتقاط وتحويل أخطاء التحليل اللغوي/التركيبي
+// ولا يقوم بتغيير منطق التنفيذ.
+
+using Antlr4.Runtime;
 namespace test
 {
     public class ErrorListener : BaseErrorListener

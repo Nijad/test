@@ -1,0 +1,15 @@
+// Test: struct inheritance and member lookup
+program TestInherit {
+ struct A {
+ int a;
+ }
+ struct B : A {
+ int b;
+ }
+ int main() {
+ B obj;
+ obj.a =1;
+ obj.b =2;
+ return obj.a + obj.b;
+ }
+ }

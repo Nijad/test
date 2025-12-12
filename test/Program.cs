@@ -1,4 +1,7 @@
-﻿using Antlr4.Runtime;
+﻿// البرنامج الرئيسي: يدير خط أنابيب الترجمة البسيط
+// الخطوات: التحليل اللغوي (Lexer) -> التحليل التركيبي (Parser) -> زيارة الشجرة للبناء الدلالي -> توليد الشيفرة
+
+using Antlr4.Runtime;
 using test.Content;
 
 namespace test
@@ -7,6 +10,7 @@ namespace test
     {
         public static void Main(string[] args)
         {
+            Console.WriteLine("Compiler start");
             try
             {
                 string inputFile = "Content//code.scl";// args[0];

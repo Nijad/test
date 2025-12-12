@@ -1,4 +1,7 @@
-﻿using Antlr4.Runtime;
+﻿// Lexer مُخصّص يمكن تخصيص قواعده عبر ANTLR
+// هنا مجرد ملف حامل للتوضيح
+
+using Antlr4.Runtime;
 using test.Content;
 
 namespace test
