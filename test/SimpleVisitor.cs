@@ -7,19 +7,24 @@ namespace test
 {
     public class SimpleVisitor : SimpleBaseVisitor<object>
     {
+        // حقول للمساعدة في التحليل الدلالي
         private SymbolTable symbolTable;
+        // قائمة لتخزين الأخطاء الدلالية
         private List<string> semanticErrors;
+        // قائمة لتخزين التحذيرات الدلالية
         private List<string> semanticWarnings;
+        // لتتبع نوع الإرجاع الحالي للدالة
         private string currentFunctionReturnType;
+        // لتتبع العقد التي تمت زيارتها
         private HashSet<ParserRuleContext> visitedNodes;
-
+        // ثوابت للنطاقات العددية
         private const int INT_MAX = int.MaxValue;
         private const int INT_MIN = int.MinValue;
         private const double DOUBLE_MAX = double.MaxValue;
         private const double DOUBLE_MIN = double.MinValue;
-
+        // لتتبع القيم الثابتة للمتغيرات
         private Dictionary<string, object> constantValues = new Dictionary<string, object>();
-
+        // الحصول على القيمة الرقمية من تعبير
         private object GetNumericValueFromExpression(SimpleParser.ExpressionContext context)
         {
             if (context == null) return null;
@@ -31,7 +36,7 @@ namespace test
                 object innerValue = GetNumericValueFromExpression(context.expression(0));
 
                 if (innerValue == null) return null;
-
+                // تطبيق العملية الأحادية
                 if (op == "-")
                 {
                     if (innerValue is int intVal)
@@ -51,15 +56,19 @@ namespace test
             // التعامل مع الإشارات الأحادية (+/-)
             if (context.expression().Length == 1)
             {
+                // التحقق من وجود إشارة في البداية
                 if (context.GetChild(0) is ITerminalNode terminal)
                 {
+                    // التحقق من نوع الإشارة
                     if (terminal.Symbol.Type == SimpleParser.MINUS)
                     {
+                        // الحصول على القيمة الداخلية
                         object innerValue = GetNumericValueFromExpression(context.expression(0));
                         if (innerValue != null)
                         {
                             try
                             {
+                                // تطبيق الإشارة السالبة
                                 if (innerValue is int intValue)
                                     return -intValue;
                                 else if (innerValue is long longValue)
@@ -67,6 +76,7 @@ namespace test
                                 else if (innerValue is double doubleValue)
                                     return -doubleValue;
                             }
+                            // التعامل مع OverflowException
                             catch (OverflowException)
                             {
                                 return null;
@@ -131,7 +141,7 @@ namespace test
                     }
                 }
             }
-
+            // إذا كان ثابتًا عشريًا مباشرًا
             if (context.REAL() != null)
             {
                 string text = context.REAL().GetText();
@@ -144,7 +154,7 @@ namespace test
                     return null;
                 }
             }
-
+            // إذا كان ثابتًا منطقيًا مباشرًا
             if (context.TRUE() != null) return true;
             if (context.FALSE() != null) return false;
 
@@ -161,10 +171,11 @@ namespace test
             return null;
         }
 
+        // تتبع القيم الثابتة للمتغيرات
         private void TrackConstantValue(string varName, string type, SimpleParser.ExpressionContext exprContext)
         {
             if (exprContext == null) return;
-
+            // الحصول على القيمة العددية من التعبير
             object value = GetNumericValueFromExpression(exprContext);
             if (value != null)
             {
@@ -172,6 +183,7 @@ namespace test
             }
         }
 
+        // التحقق من القسمة على صفر
         private bool CheckDivisionByZero(string rightType, SimpleParser.ExpressionContext rightExpr, ParserRuleContext context)
         {
             if (rightExpr != null)
@@ -227,6 +239,7 @@ namespace test
             return true;
         }
 
+        // التحقق من تجاوز الحدود في العمليات الحسابية
         private bool CheckNumericOverflow(string leftType, string rightType, string op,
                                   SimpleParser.ExpressionContext leftExpr,
                                   SimpleParser.ExpressionContext rightExpr,
@@ -243,6 +256,7 @@ namespace test
             {
                 if (leftType == "int" && rightType == "int")
                 {
+                    // تحقق دقيق للأعداد الصحيحة باستخدام long
                     long leftLong = Convert.ToInt64(leftVal);
                     long rightLong = Convert.ToInt64(rightVal);
 
@@ -308,6 +322,7 @@ namespace test
                 }
                 else if (leftType == "double" || rightType == "double")
                 {
+                    // تحقق تقريبي للأعداد العشرية باستخدام double
                     double leftDouble = Convert.ToDouble(leftVal);
                     double rightDouble = Convert.ToDouble(rightVal);
 
@@ -339,6 +354,7 @@ namespace test
             return true;
         }
 
+        // مُنشئ الزائر
         public SimpleVisitor(SymbolTable symbolTable, List<string> semanticErrors, List<string> semanticWarnings)
         {
             this.symbolTable = symbolTable;
@@ -347,19 +363,20 @@ namespace test
             visitedNodes = new HashSet<ParserRuleContext>();
         }
 
+        // إضافة تحذير دلالي
         private void AddSemanticWarning(string message, ParserRuleContext context)
         {
             string warning = $"Semantic warning at line {context.Start.Line}, column {context.start.Column}: {message}";
             semanticWarnings.Add(warning);
             //Console.WriteLine($"{warning}");
         }
-
+                
         public override object VisitProgram([NotNull] SimpleParser.ProgramContext context)
         {
             //Console.WriteLine("=== All Symbols in symbol table ===");
-            symbolTable.PrintAllSymbols();
+            //symbolTable.PrintAllSymbols();
             symbolTable.EnterScope("global");
-
+            // الحصول على اسم البرنامج
             string programName = context.IDENTIFIER().GetText();
             Console.WriteLine($"start program: {programName}");
 
@@ -389,9 +406,11 @@ namespace test
         // جمع تعريف الدالة دون زيارة الجسم
         private void CollectFunctionDeclaration(SimpleParser.FunctionContext context)
         {
+            // الحصول على اسم الدالة ونوع الإرجاع
             string returnType = context.type()?.GetText() ?? "void";
             string functionName = context.IDENTIFIER().GetText();
 
+            // إنشاء رمز الدالة
             Symbol functionSymbol = new Symbol(
                 functionName,
                 "function",
@@ -401,16 +420,19 @@ namespace test
                 symbolTable.CurrentScope
             );
 
+            // إضافة الدالة إلى جدول الرموز
             if (!symbolTable.AddSymbol(functionSymbol))
                 AddSemanticError($"function '{functionName}' is already defined", context);
 
             // جمع الباراميترات أيضاً
             if (context.arguments() != null)
+                // جمع الباراميترات دون إضافتها إلى جدول الرموز
                 foreach (SimpleParser.ArgumentContext? arg in context.arguments().argument())
                 {
+                    // لا تضيف إلى جدول الرموز هنا، بل فقط جمع المعلومات
                     string argName = arg.IDENTIFIER().GetText();
                     string type = arg.type().GetText();
-
+                    // إنشاء رمز الباراميتر (لن يضاف إلى جدول الرموز الآن)
                     Symbol argSymbol = new Symbol(
                         argName,
                         "parameter",
@@ -425,6 +447,7 @@ namespace test
         // جمع تعريف الهيكل دون زيارة الأعضاء
         private void CollectStructDeclaration(SimpleParser.StructContext context)
         {
+            // الحصول على اسم الهيكل
             string structName = context.IDENTIFIER(0).GetText();
 
             // التحقق من وجود الهيكل الأب إذا كان موجوداً
@@ -461,6 +484,7 @@ namespace test
                 foreach (IParseTree? child in structContext.struct_members().children)
                     if (child is SimpleParser.Struct_memberContext memberContext)
                     {
+                        // افترض أن الأعضاء هم متغيرات فقط في هذا السياق
                         SimpleParser.VariableContext variable = memberContext.variable();
                         if (variable?.IDENTIFIER() != null)
                             members.Add(variable.IDENTIFIER().GetText());
@@ -469,17 +493,21 @@ namespace test
             // إضافة الأعضاء الموروثة
             if (structContext?.IDENTIFIER(1) != null)
             {
+                // البحث عن تعريف الهيكل الأب
                 string parentName = structContext.IDENTIFIER(1).GetText();
                 SimpleParser.StructContext parentStruct = FindStructDefinition(parentName, structContext);
                 if (parentStruct != null)
+                    // استدعاء دالة بشكل متكرر للحصول على أعضاء الهيكل الأب
                     members.AddRange(GetAllStructMembers(parentStruct));
             }
 
             return members;
         }
 
+        // التحقق مما إذا كان الهيكل معرفًا في البرنامج
         private bool IsStructDefined(string structName, SimpleParser.ProgramContext program)
         {
+            // البحث عن تعريف الهيكل
             return FindStructInProgram(program, structName) != null;
         }
 
@@ -495,19 +523,24 @@ namespace test
         // زيارة جسم الدالة بعد جمع جميع التعريفات
         private void VisitFunctionBody(SimpleParser.FunctionContext context)
         {
+            // الحصول على اسم الدالة ونوع الإرجاع
             string functionName = context.IDENTIFIER().GetText();
             string returnType = context.type()?.GetText() ?? "void";
 
+            // تعيين نوع الإرجاع الحالي
             currentFunctionReturnType = returnType;
+            // الدخول إلى نطاق الدالة
             symbolTable.EnterScope(functionName);
 
             // إضافة الباراميترات إلى نطاق الدالة
             if (context.arguments() != null)
                 foreach (SimpleParser.ArgumentContext? arg in context.arguments().argument())
                 {
+                    // إضافة رمز الباراميتر إلى جدول الرموز
                     string argName = arg.IDENTIFIER().GetText();
+                    // الحصول على نوع الباراميتر
                     string type = arg.type().GetText();
-
+                    // إضافة رمز الباراميتر إلى جدول الرموز
                     Symbol argSymbol = new Symbol(
                         argName,
                         "parameter",
@@ -529,6 +562,7 @@ namespace test
             if (returnType != "void" && !CheckAllPathsReturn(context))
                 AddSemanticError($"Function '{functionName}' does not returne value in all paths", context);
 
+            // التحقق من وجود عبارات إرجاع في دالة void
             if (returnType == "void" && CheckAllPathsReturn(context))
                 AddSemanticError($"Function '{functionName}' has return statements but its return type is void", context);
 

@@ -51,7 +51,8 @@ namespace test
         // الخروج من النطاق الحالي
         public void ExitScope()
         {
-            if (scopes.Count > 1) // لا نخرج من النطاق العالمي
+            // لا نخرج من النطاق العالمي
+            if (scopes.Count > 1)
             {
                 scopeNames.Pop();
                 scopes.Pop();
@@ -136,25 +137,29 @@ namespace test
         // إدارة تخطيط الهياكل
         public void AddStructLayout(string structName, StructLayout layout)
         {
-            structLayouts[structName] = layout; // تسجيل تخطيط الهيكل
+            structLayouts[structName] = layout; 
         }
 
+        // استرجاع تخطيط هيكل معين
         public StructLayout GetStructLayout(string structName)
         {
             return structLayouts.ContainsKey(structName) ? structLayouts[structName] : null;
         }
 
+        // التحقق مما إذا كان نوع معين هو هيكل
         public bool IsStructType(string name)
         {
             return structLayouts.ContainsKey(name);
         }
 
+        // استرجاع حجم هيكل معين
         public int GetStructSize(string structName)
         {
             var layout = GetStructLayout(structName);
             return layout != null ? layout.Size : 0;
         }
 
+        // استرجاع إزاحة عضو معين داخل هيكل معين
         public int GetStructMemberOffset(string structName, string memberName)
         {
             var layout = GetStructLayout(structName);
@@ -164,6 +169,7 @@ namespace test
             return -1;
         }
 
+        // استرجاع نوع عضو معين داخل هيكل معين
         public string GetStructMemberType(string structName, string memberName)
         {
             var layout = GetStructLayout(structName);

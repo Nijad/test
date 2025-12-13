@@ -13,22 +13,31 @@ namespace test
             Console.WriteLine("Compiler start");
             try
             {
+                // قراءة ملف الإدخال
                 string inputFile = "Content//code.scl";// args[0];
+                // قراءة محتوى الملف
                 string inputCode = File.ReadAllText(inputFile);
 
                 Console.WriteLine("start analysing...");
                 Console.WriteLine();
-                AntlrInputStream inputStream = new AntlrInputStream(inputCode);
-                CustomLexer lexer = new CustomLexer(inputStream);
-                CommonTokenStream tokenStream = new CommonTokenStream(lexer);
 
+                // التحليل اللغوي والتحليل التركيبي
+                AntlrInputStream inputStream = new AntlrInputStream(inputCode);
+                // إنشاء الـ Lexer والـ Parser
+                CustomLexer lexer = new CustomLexer(inputStream);
+                // إنشاء تيار الرموز من الـ Lexer
+                CommonTokenStream tokenStream = new CommonTokenStream(lexer);
+                // إنشاء الـ Parser
                 SimpleParser parser = new SimpleParser(tokenStream);
+                // إضافة مستمع للأخطاء النحوية
                 ErrorListener errorListener = new ErrorListener();
                 parser.AddErrorListener(errorListener);
 
                 Console.WriteLine("syntax analysing is processing...");
+                // بدء التحليل التركيبي
                 SimpleParser.ProgramContext tree = parser.program();
-
+                
+                // التحقق من وجود أخطاء لغوية
                 if (lexer.HasLexicalErrors)
                 {
                     Console.WriteLine();
@@ -38,6 +47,7 @@ namespace test
                     return; // إيقاف البرنامج عند وجود أخطاء لغوية
                 }
 
+                // التحقق من وجود أخطاء نحوية
                 if (errorListener.HasSyntaxErrors)
                 {
                     Console.WriteLine();
@@ -48,14 +58,17 @@ namespace test
 
                 Console.WriteLine("Syntax parsing was done successfuly!");
                 Console.WriteLine();
+                // البناء الدلالي
                 SymbolTable symbolTable = new SymbolTable();
                 List<string> semanticErrors = new List<string>();
                 List<string> semanticWarnings = new List<string>();
 
                 Console.WriteLine("building symbol table and semantic analysis...");
+                // زيارة شجرة التحليل التركيبي لبناء جدول الرموز والتحليل الدلالي
                 SimpleVisitor visitor = new SimpleVisitor(symbolTable, semanticErrors, semanticWarnings);
                 visitor.Visit(tree);
 
+                // طباعة الأخطاء الدلالية إذا وجدت (مع إيقاف البرنامج)
                 if (semanticErrors.Count > 0)
                 {
                     Console.WriteLine();
@@ -81,22 +94,26 @@ namespace test
                 // طباعة جدول الرموز الكامل
                 //symbolTable.PrintAllScopes();
 
-                // بناء شجرة الـ AST
+                // بناء شجرة التحليل التركيبي المجرد (AST)
                 ASTBuilder astBuilder = new ASTBuilder(symbolTable);
+                // زيارة شجرة التحليل التركيبي لبناء جدول الرموز والتحليل الدلالي
                 ASTNode ast = astBuilder.Visit(tree);
 
-                // توليد الكود
+                // توليد الشيفرة
                 CodeGenerator codeGenerator = new CodeGenerator(symbolTable);
                 string assemblyCode = codeGenerator.Generate(tree);
-
+                // كتابة الشيفرة المولدة إلى ملف الإخراج
                 string outputFile = Path.ChangeExtension(inputFile, ".asm");
+                // حفظ الشيفرة المولدة في ملف
                 File.WriteAllText(outputFile, assemblyCode);
-                Console.WriteLine($"Code Generated Succussfully");
+                Console.WriteLine($"Code Generated Successfully");
                 Console.WriteLine($"Output file : {outputFile}");
 
+                Console.WriteLine("Program execution finished.");
             }
             catch (Exception ex)
             {
+                // التقاط وطباعة أي استثناء غير متوقع
                 Console.WriteLine($"error: {ex.Message}");
                 Console.WriteLine($"details: {ex.StackTrace}");
             }

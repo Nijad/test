@@ -39,6 +39,15 @@ program ReturnTypeMismatch
     }
 }
 
+program ReturnWithVoid
+{
+    void noReturn() {
+        int x = 5;
+        // خطأ دلالي: دالة void لا يمكنها إرجاع قيمة
+        return x;
+    }
+}
+
 program OutOfScope
 {
     void outer() {
@@ -82,6 +91,14 @@ program IntegerOverflow
     void test() {
         int max = 2147483647;
         int overflow = max + 1;  // تحذير: تجاوز النطاق
+    }
+}
+
+program RealOverflow
+{
+    void test() {
+        double num = 1.7e308;
+        double overflow = num * 1000;  // تحذير: تجاوز النطاق
     }
 }
 

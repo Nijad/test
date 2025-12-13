@@ -3,7 +3,7 @@ grammar Simple;
 // Lexer Rules
 WS: [ \t\r\n]+ -> skip;
 //TAB: '\t' -> skip;
-ENTER: '\r'? '\n' -> skip;
+//ENTER: '\r'? '\n' -> skip;
 
 COMMENT: '{*' .*? '*}' -> skip;
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
