@@ -1,0 +1,12 @@
+// Test: static struct member
+program TestStatic {
+ struct Config {
+ static int version;
+ int id;
+ }
+
+ int main() {
+ Config.version =5;
+ return Config.version;
+ }
+ }

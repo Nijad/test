@@ -1,0 +1,20 @@
+// Test: struct instance field read/write and pass-by-value
+program TestStructs {
+ struct Point {
+ int x;
+ int y;
+ }
+
+ int sum(Point p) {
+ return p.x + p.y;
+ }
+
+ int main() {
+ Point p;
+ p.x =10;
+ p.y =20;
+ int s;
+ s = sum(p);
+ return 0;
+ }
+}

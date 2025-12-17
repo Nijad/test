@@ -17,8 +17,8 @@
 mono_crash.*
 
 # Build results
-[Dd]ebug/
-[Dd]ebugPublic/
+# [Dd]ebug/
+# [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
 x64/
@@ -27,8 +27,8 @@ x86/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
-[Bb]in/
-[Oo]bj/
+# [Bb]in/
+# [Oo]bj/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
@@ -362,10 +362,10 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /test/Content/.gen/
-/test/Content/bin/
-/test/Content/obj/
+# /test/Content/bin/
+# /test/Content/obj/
 /test/Content/.antlr/
 
-/test/Content/test1.txt
-/test/Content/test2.txt
-/test/Content/code.scl
+# /test/Content/test1.txt
+# /test/Content/test2.txt
+# /test/Content/code.scl

@@ -1,0 +1,24 @@
+﻿program CorrectProgram {
+    struct Point {
+        int x;
+        int y;
+    }
+    
+    struct Circle : Point {
+        static double PI = 3.14159;
+        double radius;
+    }
+    
+    double area(Circle c) {
+        return Circle.PI * c.radius * c.radius;
+    }
+    
+    double main() {
+        Circle c;
+        c.x = 3;
+        c.y = 4;
+        c.radius = 5.0;
+        double a = area(c);
+        return a;
+    }
+}

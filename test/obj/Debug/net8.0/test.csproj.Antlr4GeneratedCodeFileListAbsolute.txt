@@ -1,0 +1,6 @@
+C:\Users\nijad\source\repos\test\test\obj\Debug\net8.0\SimpleLexer.cs
+C:\Users\nijad\source\repos\test\test\obj\Debug\net8.0\SimpleParser.cs
+C:\Users\nijad\source\repos\test\test\obj\Debug\net8.0\SimpleListener.cs
+C:\Users\nijad\source\repos\test\test\obj\Debug\net8.0\SimpleBaseListener.cs
+C:\Users\nijad\source\repos\test\test\obj\Debug\net8.0\SimpleVisitor.cs
+C:\Users\nijad\source\repos\test\test\obj\Debug\net8.0\SimpleBaseVisitor.cs
